@@ -11,6 +11,7 @@
     --text-primary:#0b0b0b; --text-secondary:#52514e; --muted:#898781;
     --grid:#e1e0d9; --axis:#c3c2b7;
     --series-1:#2a78d6; --series-neg:#e34948;
+    --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a;
     --up:#006300; --down:#d03b3b; --warn:#b06a00;
     --border:rgba(11,11,11,.10); --wash:rgba(11,11,11,.04);
     --radius:14px;
@@ -22,6 +23,7 @@
       --text-primary:#ffffff; --text-secondary:#c3c2b7; --muted:#898781;
       --grid:#2c2c2a; --axis:#383835;
       --series-1:#3987e5; --series-neg:#e66767;
+      --s1:#3987e5; --s2:#d95926; --s3:#199e70;
       --up:#0ca30c; --down:#e66767; --warn:#fab219;
       --border:rgba(255,255,255,.10); --wash:rgba(255,255,255,.06);
     }
@@ -32,6 +34,7 @@
     --text-primary:#ffffff; --text-secondary:#c3c2b7; --muted:#898781;
     --grid:#2c2c2a; --axis:#383835;
     --series-1:#3987e5; --series-neg:#e66767;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70;
     --up:#0ca30c; --down:#e66767; --warn:#fab219;
     --border:rgba(255,255,255,.10); --wash:rgba(255,255,255,.06);
   }
@@ -101,6 +104,22 @@
   .tile .lbl{font-size:11.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
   .tile .num{font-size:25px;font-weight:650;margin-top:7px;line-height:1}
   .tile .sub2{margin-top:5px;font-size:12px;color:var(--muted)}
+
+  /* легенда сравнения */
+  .legend{display:flex;gap:18px;flex-wrap:wrap;margin:4px 0 10px}
+  .legend .item{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text-secondary)}
+  .legend .k{width:18px;height:2px;border-radius:2px;flex:0 0 auto}
+  .legend .nm{font-weight:600;color:var(--text-primary)}
+  .legend .v{font-variant-numeric:tabular-nums}
+
+  /* произвольный период */
+  .rangebox{display:none;gap:12px;align-items:flex-end;flex-wrap:wrap;margin:10px 0 0;
+            padding:14px 16px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface-1)}
+  .rangebox.on{display:flex}
+  .rangebox .fld{gap:6px}
+  input[type=date]{font-family:inherit;font-size:14px;padding:9px 11px;border-radius:10px;
+        border:1px solid var(--border);background:var(--page);color:var(--text-primary);min-width:150px}
+  .rangebox .err{margin:0;flex-basis:100%}
 
   .chart{position:relative;width:100%}
   .chart svg{display:block;width:100%;overflow:visible;touch-action:pan-y}
@@ -184,6 +203,8 @@
 
   <div class="ctl">
     <select id="pairSel" aria-label="Валютная пара"></select>
+    <select id="cmp1" aria-label="Вторая пара для сравнения"></select>
+    <select id="cmp2" aria-label="Третья пара для сравнения"></select>
     <div class="seg" id="srcSeg" role="group" aria-label="Источник"></div>
   </div>
 
@@ -203,6 +224,21 @@
       <button class="ghost" id="csvBtn" type="button">Скачать CSV</button>
     </div>
 
+    <div class="rangebox" id="rangeBox">
+      <div class="fld">
+        <label for="dFrom">Начало</label>
+        <input type="date" id="dFrom">
+      </div>
+      <div class="fld">
+        <label for="dTo">Конец</label>
+        <input type="date" id="dTo">
+      </div>
+      <button class="ghost" id="rangeApply" type="button">Показать</button>
+      <button class="ghost" id="rangeMonth" type="button">Последний месяц</button>
+      <button class="ghost" id="rangeYtd" type="button">С начала года</button>
+      <p class="err" id="rangeErr"></p>
+    </div>
+
     <div class="top">
       <div class="card hero">
         <div class="lbl">Курс на <span id="heroDate">—</span></div>
@@ -219,7 +255,15 @@
     </div>
 
     <div class="card">
-      <div class="card-h"><h2 id="lineTitle">Курс</h2><span class="note" id="rangeNote">—</span></div>
+      <div class="card-h">
+        <h2 id="lineTitle">Курс</h2>
+        <div class="seg small hidden" id="scaleSeg" role="group" aria-label="Шкала">
+          <button type="button" data-id="abs" aria-pressed="true">В валюте</button>
+          <button type="button" data-id="idx" aria-pressed="false">% к началу</button>
+        </div>
+        <span class="note" id="rangeNote">—</span>
+      </div>
+      <div class="legend hidden" id="legend"></div>
       <div id="dynEmpty" class="empty hidden"></div>
       <div class="chart" id="lineWrap">
         <svg id="lineSvg" role="img" tabindex="0" aria-label="График курса"></svg>
@@ -228,7 +272,7 @@
     </div>
 
     <div class="card" id="barCard">
-      <div class="card-h"><h2>Изменение к предыдущему значению</h2>
+      <div class="card-h"><h2 id="barTitle">Изменение к предыдущему значению</h2>
         <span class="note">рост — синий, снижение — красный</span></div>
       <div class="chart" id="barWrap">
         <svg id="barSvg" role="img" tabindex="0" aria-label="График изменения курса"></svg>
@@ -240,7 +284,7 @@
       <div class="card-h"><h2>Таблица значений</h2><span class="note" id="tblNote">—</span></div>
       <div class="tbl-scroll">
         <table>
-          <thead><tr><th>Дата</th><th id="thRate">Курс</th><th>Изм.</th><th>Изм., %</th></tr></thead>
+          <thead id="tblHead"></thead>
           <tbody id="tbody"></tbody>
         </table>
       </div>
@@ -385,14 +429,18 @@
   ];
 
   var PERIODS = [
-    {id:"today", name:"Сегодня",     days:4,    pts:4},
-    {id:"3d",    name:"3 дня",       days:6,    pts:6},
-    {id:"week",  name:"Неделя",      days:9,    pts:8},
-    {id:"month", name:"Месяц",       days:31,   pts:16},
-    {id:"quart", name:"Квартал",     days:93,   pts:20},
-    {id:"year",  name:"Год",         days:366,  pts:26},
-    {id:"all",   name:"За всё время",days:1830, pts:30}
+    {id:"today",  name:"Сегодня",     days:4,    pts:4},
+    {id:"3d",     name:"3 дня",       days:6,    pts:6},
+    {id:"week",   name:"Неделя",      days:9,    pts:8},
+    {id:"month",  name:"Месяц",       days:31,   pts:16},
+    {id:"quart",  name:"Квартал",     days:93,   pts:20},
+    {id:"year",   name:"Год",         days:366,  pts:26},
+    {id:"all",    name:"За всё время",days:1830, pts:30},
+    {id:"custom", name:"Свой период", days:31,   pts:16}
   ];
+
+  /* цвета рядов — слоты 1-3 проверенной палитры */
+  var SERIES_COLORS = ["var(--s1)", "var(--s2)", "var(--s3)"];
 
   var MATRIX = ["RUB","USD","EUR","CNY","GBP","JPY","CHF","TRY"];
 
@@ -407,7 +455,10 @@
   var state = {
     pair: PAIRS[0], source: "cbr", view: "dyn",
     period: PERIODS[3], horizon: 30,
-    rows: [], latest: null, table: null,
+    cmp: [null, null],            // до двух дополнительных пар на графике
+    custom: {from: null, till: null},
+    scaleMode: "auto",            // auto | abs | idx
+    series: [], rows: [], latest: null, table: null,
     manual: null, demoNote: null, loading: false, status: {kind:"", text:""},
     reqId: 0
   };
@@ -497,6 +548,39 @@
     try { localStorage.setItem("rc:" + k, JSON.stringify(v)); } catch(e){}
   }
 
+  /* ============ диапазон дат ============ */
+  function currentRange(){
+    var todayIso = iso(new Date()), from, till, pts;
+    if(state.period.id === "custom" && state.custom.from && state.custom.till){
+      from = state.custom.from; till = state.custom.till;
+      var d = Math.max(1, daysBetween(from, till));
+      pts = Math.min(30, Math.max(3, d + 1));
+    } else {
+      till = todayIso;
+      from = iso(dayShift(new Date(), -state.period.days));
+      pts = state.period.pts;
+    }
+    return {from: from, till: till, pts: pts, isToday: till === todayIso};
+  }
+  function sampleDates(range){
+    var days = daysBetween(range.from, range.till);
+    var step = Math.max(1, Math.round(days / Math.max(1, range.pts - 1)));
+    var out = [], end = fromIso(range.till);
+    for(var k = 0; k <= days; k += step) out.push(iso(dayShift(end, -k)));
+    if(out[out.length-1] !== range.from) out.push(range.from);
+    return out.reverse();
+  }
+  function downsample(pts, target){
+    if(pts.length <= target) return pts;
+    var step = (pts.length - 1) / (target - 1), out = [];
+    for(var i = 0; i < target - 1; i++) out.push(pts[Math.round(i * step)]);
+    out.push(pts[pts.length - 1]);
+    return out;
+  }
+  function inRange(pts, range){
+    return pts.filter(function(p){ return p.d >= range.from && p.d <= range.till; });
+  }
+
   /* ============ источник: ЦБ РФ ============ */
   function cbrTable(json){
     var t = {RUB:1};
@@ -528,37 +612,32 @@
     if(!b || !q) return null;
     return b / q;
   }
-  function sampleDates(days, pts){
-    var today = new Date(), out = [];
-    var step = Math.max(1, Math.round(days / pts));
-    for(var i = 0; i < pts; i++){
-      var d = dayShift(today, -i * step);
-      out.push(iso(d));
-    }
-    return out.reverse();
-  }
-  function cbrSeries(pair, period){
-    var dates = sampleDates(period.days, period.pts);
-    return pool(dates, 4, function(d){ return cbrOn(d); }).then(function(tables){
-      var pts = [];
-      tables.forEach(function(t, i){
-        var v = rateFrom(t, pair);
-        if(v) pts.push({d: dates[i], v: v});
-      });
-      return pts;
-    });
-  }
   var providerCBR = {
     label: "ЦБ РФ",
-    load: function(pair, period){
-      return Promise.all([cbrLatest(), cbrSeries(pair, period)]).then(function(r){
-        var L = r[0], pts = r[1];
-        var last = rateFrom(L.table, pair), prev = rateFrom(L.prev, pair);
-        if(!last) throw new Error("ЦБ не публикует курс " + pair.title);
-        if(!pts.length || pts[pts.length-1].d < L.date) pts.push({d: L.date, v: last});
-        else pts[pts.length-1] = {d: L.date, v: last};
-        return {points: pts, table: L.table, date: L.date, prev: prev,
-                note: pair.q === "RUB" || pair.b === "RUB" ? "" : "кросс-курс по официальным курсам ЦБ"};
+    /* одна выборка архивов обслуживает все пары сразу — таблица ЦБ содержит все валюты */
+    load: function(pairs, range){
+      var dates = sampleDates(range);
+      return Promise.all([cbrLatest(), pool(dates, 4, function(d){ return cbrOn(d); })]).then(function(r){
+        var L = r[0], tables = r[1];
+        var series = pairs.map(function(pair){
+          var pts = [];
+          tables.forEach(function(t, i){
+            var v = rateFrom(t, pair);
+            if(v) pts.push({d: dates[i], v: v});
+          });
+          var last = rateFrom(L.table, pair);
+          if(last && L.date && L.date <= range.till && L.date >= range.from){
+            if(pts.length && pts[pts.length-1].d === L.date) pts[pts.length-1] = {d: L.date, v: last};
+            else if(!pts.length || pts[pts.length-1].d < L.date) pts.push({d: L.date, v: last});
+          }
+          return {pair: pair, points: pts,
+                  err: pts.length ? null : "ЦБ не публикует курс " + pair.title};
+        });
+        var prim = pairs[0];
+        return {series: series, table: L.table, date: series[0].points.length
+                  ? series[0].points[series[0].points.length-1].d : L.date,
+                prev: range.isToday ? rateFrom(L.prev, prim) : null,
+                note: (prim.q === "RUB" || prim.b === "RUB") ? "" : "кросс-курс по официальным курсам ЦБ"};
       });
     }
   };
@@ -575,26 +654,24 @@
     return getJSON(u).then(function(j){
       var md = issCols(j.marketdata || {}), sec = issCols(j.securities || {});
       var mrow = md.rows[0] || [], srow = sec.rows[0] || [];
-      function mv(n){ return md.idx[n] !== undefined ? mrow[md.idx[n]] : null; }
-      function sv(n){ return sec.idx[n] !== undefined ? srow[sec.idx[n]] : null; }
+      function mv(nm){ return md.idx[nm] !== undefined ? mrow[md.idx[nm]] : null; }
+      function sv(nm){ return sec.idx[nm] !== undefined ? srow[sec.idx[nm]] : null; }
       var last = mv("LAST") || mv("MARKETPRICE") || mv("LCURRENTPRICE") || sv("PREVPRICE");
-      var prev = sv("PREVPRICE");
-      var time = mv("SYSTIME") || mv("UPDATETIME") || null;
       if(!last) throw new Error("биржа не отдала цену по " + pair.moex);
-      return {v: last / pair.ms, prev: prev ? prev / pair.ms : null, time: time};
+      var prev = sv("PREVPRICE");
+      return {v: last / pair.ms, prev: prev ? prev / pair.ms : null};
     });
   }
-  function moexHistory(pair, period){
-    var till = iso(new Date()), from = iso(dayShift(new Date(), -period.days));
+  function moexHistory(pair, range){
     var u = "https://iss.moex.com/iss/history/engines/currency/markets/selt/boards/CETS/securities/" +
             pair.moex + ".json?iss.meta=off&iss.only=history&history.columns=TRADEDATE,CLOSE,WAPRICE" +
-            "&from=" + from + "&till=" + till + "&limit=100";
+            "&from=" + range.from + "&till=" + range.till + "&limit=100";
     function page(start){
       return getJSON(u + "&start=" + start).then(function(j){
         var h = issCols(j.history || {});
-        return h.rows.map(function(r){
-          var v = r[h.idx.CLOSE] || r[h.idx.WAPRICE];
-          return v ? {d: r[h.idx.TRADEDATE], v: v / pair.ms} : null;
+        return h.rows.map(function(row){
+          var v = row[h.idx.CLOSE] || row[h.idx.WAPRICE];
+          return v ? {d: row[h.idx.TRADEDATE], v: v / pair.ms} : null;
         }).filter(Boolean);
       });
     }
@@ -606,27 +683,34 @@
       });
     });
   }
-  function downsample(pts, target){
-    if(pts.length <= target) return pts;
-    var step = (pts.length - 1) / (target - 1), out = [];
-    for(var i = 0; i < target - 1; i++) out.push(pts[Math.round(i * step)]);
-    out.push(pts[pts.length - 1]);
-    return out;
-  }
   var providerMOEX = {
     label: "Мосбиржа (CETS)",
-    load: function(pair, period){
-      if(!pair.moex) {
-        var e = new Error("На Мосбирже нет инструмента для пары " + pair.title + ".");
-        e.soft = true; throw e;
-      }
-      return Promise.all([moexLast(pair), moexHistory(pair, period)]).then(function(r){
-        var L = r[0], pts = downsample(r[1], period.pts);
-        var today = iso(new Date());
-        if(!pts.length || pts[pts.length-1].d !== today) pts.push({d: today, v: L.v});
-        else pts[pts.length-1] = {d: today, v: L.v};
-        return {points: pts, table: null, date: today, prev: L.prev,
-                note: pair.ms !== 1 ? "цена инструмента за " + pair.ms + " ед. приведена к 1 ед." : ""};
+    load: function(pairs, range){
+      var jobs = pairs.map(function(pair){
+        if(!pair.moex) return Promise.resolve({pair: pair, points: [],
+          err: "на Мосбирже нет инструмента для пары " + pair.title});
+        var hist = moexHistory(pair, range).then(function(h){ return h; }, function(){ return []; });
+        var last = range.isToday ? moexLast(pair).catch(function(){ return null; }) : Promise.resolve(null);
+        return Promise.all([last, hist]).then(function(r){
+          var L = r[0], pts = downsample(inRange(r[1], range), range.pts);
+          if(L && range.isToday){
+            var today = iso(new Date());
+            if(pts.length && pts[pts.length-1].d === today) pts[pts.length-1] = {d: today, v: L.v};
+            else pts.push({d: today, v: L.v});
+          }
+          return {pair: pair, points: pts, prev: L ? L.prev : null,
+                  err: pts.length ? null : "биржа не дала данных по " + pair.title};
+        });
+      });
+      return Promise.all(jobs).then(function(series){
+        if(series.every(function(x){ return x.err; })){
+          var e = new Error(series[0].err); e.soft = true; throw e;
+        }
+        var prim = series[0], pts = prim.points;
+        return {series: series, table: null,
+                date: pts.length ? pts[pts.length-1].d : range.till,
+                prev: prim.prev || (pts.length > 1 ? pts[pts.length-2].v : null),
+                note: pairs[0].ms !== 1 ? "цена инструмента за " + pairs[0].ms + " ед. приведена к 1 ед." : ""};
       });
     }
   };
@@ -634,32 +718,51 @@
   /* ============ источник: Форекс ============ */
   var providerFX = {
     label: "Форекс",
-    load: function(pair, period){
-      var latest = getJSON("https://open.er-api.com/v6/latest/" + pair.b).then(function(j){
-        if(!j || !j.rates || !j.rates[pair.q]) throw new Error("нет котировки " + pair.title);
-        var d = j.time_last_update_utc ? new Date(j.time_last_update_utc) : new Date();
-        return {v: j.rates[pair.q], date: iso(d), raw: j.rates};
+    load: function(pairs, range){
+      var jobs = pairs.map(function(pair){
+        var hist = getJSON("https://api.frankfurter.app/" + range.from + ".." + range.till +
+                           "?from=" + pair.b + "&to=" + pair.q)
+          .then(function(j){
+            var out = [];
+            if(j && j.rates) for(var d in j.rates){ if(j.rates[d][pair.q]) out.push({d: d, v: j.rates[d][pair.q]}); }
+            out.sort(function(a, b){ return a.d < b.d ? -1 : 1; });
+            return out;
+          })
+          .catch(function(){ return []; });
+        var spot = range.isToday
+          ? getJSON("https://open.er-api.com/v6/latest/" + pair.b)
+              .then(function(j){
+                if(!j || !j.rates || !j.rates[pair.q]) return null;
+                var d = j.time_last_update_utc ? new Date(j.time_last_update_utc) : new Date();
+                return {v: j.rates[pair.q], date: iso(d), raw: j.rates};
+              })
+              .catch(function(){ return null; })
+          : Promise.resolve(null);
+        return Promise.all([spot, hist]).then(function(r){
+          var L = r[0], pts = downsample(inRange(r[1], range), range.pts);
+          if(L){
+            if(pts.length && pts[pts.length-1].d === L.date) pts[pts.length-1] = {d: L.date, v: L.v};
+            else pts.push({d: L.date, v: L.v});
+          }
+          return {pair: pair, points: pts, raw: L ? L.raw : null,
+                  err: pts.length ? null : "нет котировок " + pair.title,
+                  noHist: r[1].length === 0};
+        });
       });
-      var till = iso(new Date()), from = iso(dayShift(new Date(), -period.days));
-      var hist = getJSON("https://api.frankfurter.app/" + from + ".." + till +
-                         "?from=" + pair.b + "&to=" + pair.q)
-        .then(function(j){
-          var out = [];
-          if(j && j.rates) for(var d in j.rates){ if(j.rates[d][pair.q]) out.push({d:d, v:j.rates[d][pair.q]}); }
-          out.sort(function(a,b){ return a.d < b.d ? -1 : 1; });
-          return out;
-        })
-        .catch(function(){ return []; });
-      return Promise.all([latest, hist]).then(function(r){
-        var L = r[0], pts = downsample(r[1], period.pts);
-        if(!pts.length || pts[pts.length-1].d !== L.date) pts.push({d: L.date, v: L.v});
-        var prev = pts.length > 1 ? pts[pts.length-2].v : null;
-        // таблица «сколько единиц базовой валюты за 1 ед. валюты» — как у ЦБ
-        var norm = {};
-        for(var c in L.raw) norm[c] = 1 / L.raw[c];
-        norm[pair.b] = 1;
-        return {points: pts, table: norm, date: L.date, prev: prev,
-                note: r[1].length ? "" : "история у источника доступна не по всем парам — показан текущий курс"};
+      return Promise.all(jobs).then(function(series){
+        if(series.every(function(x){ return x.err; })){
+          var e = new Error(series[0].err); e.soft = true; throw e;
+        }
+        var prim = series[0], pts = prim.points, norm = null;
+        if(prim.raw){
+          norm = {};
+          for(var c in prim.raw) norm[c] = 1 / prim.raw[c];
+          norm[pairs[0].b] = 1;
+        }
+        return {series: series, table: norm,
+                date: pts.length ? pts[pts.length-1].d : range.till,
+                prev: pts.length > 1 ? pts[pts.length-2].v : null,
+                note: prim.noHist ? "у источника нет истории по этой паре — показан текущий курс" : ""};
       });
     }
   };
@@ -677,7 +780,7 @@
 
   var PROVIDERS = {cbr: providerCBR, moex: providerMOEX, fx: providerFX, rbc: providerRBC};
 
-  /* ============ шкалы и графики ============ */
+  /* ============ шкалы ============ */
   function niceScale(lo, hi, want, padFrac){
     if(hi === lo){ hi = lo + Math.abs(lo || 1) * 0.01; lo = lo - Math.abs(lo || 1) * 0.01; }
     var pad = (hi - lo) * (padFrac === undefined ? 0.12 : padFrac); lo -= pad; hi += pad;
@@ -700,34 +803,57 @@
     return 5;
   }
 
+  /* ============ график курса ============ */
   var geom = {};
 
+  function nearestRow(rows, dateIso, tol){
+    if(!rows || !rows.length) return null;
+    var best = null, bd = Infinity;
+    for(var i = 0; i < rows.length; i++){
+      var d = Math.abs(daysBetween(rows[i].d, dateIso));
+      if(d < bd){ bd = d; best = rows[i]; }
+    }
+    return (tol === undefined || bd <= tol) ? best : null;
+  }
+
+  /* cfg: {wrap, svg, tip, series:[{pair, rows, color}], proj, mode:"abs"|"idx", aria, h} */
   function drawLine(cfg){
     var host = $(cfg.wrap), svg = $(cfg.svg);
     if(!host || !svg) return;
     var W = Math.max(280, host.clientWidth || 640);
     var small = W < 560;
     var H = cfg.h || (small ? 250 : 330);
-    var m = {t:20, r: small ? 44 : 62, b:30, l: small ? 46 : 56};
+    var series = cfg.series.filter(function(s){ return s.rows && s.rows.length; });
+    if(!series.length){ svg.innerHTML = ""; return; }
+    var proj = cfg.proj || [];
+    var idx = cfg.mode === "idx";
+
+    // значение → то, что рисуем (в индексном режиме — % к первому значению ряда)
+    series.forEach(function(s){ s.base = idx ? s.rows[0].v : 1; });
+    var disp = function(s, v){ return idx ? v / s.base * 100 : v; };
+
+    var m = {t:20, r: small ? 48 : (series.length > 1 ? 118 : 62), b:30, l: small ? 46 : 56};
     var iw = W - m.l - m.r, ih = H - m.t - m.b;
 
-    var hist = cfg.hist, proj = cfg.proj || [];
-    var all = hist.concat(proj);
-    if(all.length < 1){ svg.innerHTML = ""; return; }
-    var t0 = hist[0].d;
-    var span = Math.max(1, daysBetween(t0, all[all.length-1].d));
-    var X = function(p){ return m.l + iw * (daysBetween(t0, p.d) / span); };
+    var t0 = series[0].rows[0].d, t1 = series[0].rows[series[0].rows.length-1].d;
+    series.forEach(function(s){
+      if(s.rows[0].d < t0) t0 = s.rows[0].d;
+      if(s.rows[s.rows.length-1].d > t1) t1 = s.rows[s.rows.length-1].d;
+    });
+    if(proj.length && proj[proj.length-1].d > t1) t1 = proj[proj.length-1].d;
+    var span = Math.max(1, daysBetween(t0, t1));
+    var X = function(d){ return m.l + iw * (daysBetween(t0, d) / span); };
 
     var vals = [];
-    hist.forEach(function(p){ vals.push(p.v); });
-    proj.forEach(function(p){ vals.push(p.v); if(p.lo) vals.push(p.lo); if(p.hi) vals.push(p.hi); });
+    series.forEach(function(s){ s.rows.forEach(function(r){ vals.push(disp(s, r.v)); }); });
+    proj.forEach(function(p){
+      vals.push(disp(series[0], p.v));
+      if(p.lo !== undefined){ vals.push(disp(series[0], p.lo)); vals.push(disp(series[0], p.hi)); }
+    });
     var sc = niceScale(Math.min.apply(null, vals), Math.max.apply(null, vals), small ? 4 : 5);
     var dec = tickFmt(sc.step);
     var Y = function(v){ return m.t + ih * (1 - (v - sc.lo)/(sc.hi - sc.lo)); };
-
-    var withYear = daysBetween(hist[0].d, all[all.length-1].d) > 300;
-    var maxI = 0, minI = 0;
-    hist.forEach(function(p,i){ if(p.v > hist[maxI].v) maxI = i; if(p.v < hist[minI].v) minI = i; });
+    var withYear = span > 300;
 
     var s = '<svg xmlns="http://www.w3.org/2000/svg" id="' + cfg.svg + '" role="img" tabindex="0" aria-label="' +
             esc(cfg.aria || "График") + '" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">';
@@ -737,130 +863,190 @@
       s += '<line x1="' + m.l + '" y1="' + y + '" x2="' + (m.l+iw) + '" y2="' + y +
            '" stroke="var(--grid)" stroke-width="1"/>' +
            '<text x="' + (m.l-9) + '" y="' + (y+4) + '" text-anchor="end" font-size="11" fill="var(--muted)"' +
-           ' style="font-variant-numeric:tabular-nums">' + tv.toFixed(dec) + '</text>';
+           ' style="font-variant-numeric:tabular-nums">' + tv.toFixed(dec) + (idx ? "" : "") + '</text>';
     });
 
-    // подписи по оси X
-    var labelPts = hist.concat(proj.length ? [proj[proj.length-1]] : []);
-    var maxLab = small ? 4 : 7;
-    var stepI = Math.max(1, Math.ceil(labelPts.length / maxLab));
-    labelPts.forEach(function(p, i){
-      var last = (i === labelPts.length - 1);
+    var axisRows = series[0].rows.concat(proj.length ? [proj[proj.length-1]] : []);
+    var maxLab = small ? 4 : 7, stepI = Math.max(1, Math.ceil(axisRows.length / maxLab));
+    axisRows.forEach(function(r, i){
+      var last = (i === axisRows.length - 1);
       if(i % stepI !== 0 && !last) return;
-      if(!last && (labelPts.length - 1 - i) < stepI) return;
-      s += '<text x="' + X(p) + '" y="' + (m.t+ih+19) + '" text-anchor="middle" font-size="11" fill="var(--muted)">' +
-           esc(shortDate(p.d, withYear)) + '</text>';
+      if(!last && (axisRows.length - 1 - i) < stepI) return;
+      s += '<text x="' + X(r.d) + '" y="' + (m.t+ih+19) + '" text-anchor="middle" font-size="11" fill="var(--muted)">' +
+           esc(shortDate(r.d, withYear)) + '</text>';
     });
 
     // диапазон прогноза
     if(proj.length && proj[0].lo !== undefined){
       var up = "", dn = "";
-      proj.forEach(function(p, i){ up += (i ? "L" : "M") + X(p).toFixed(2) + " " + Y(p.hi).toFixed(2) + " "; });
-      for(var k = proj.length - 1; k >= 0; k--) dn += "L" + X(proj[k]).toFixed(2) + " " + Y(proj[k].lo).toFixed(2) + " ";
-      s += '<path d="' + up + dn + 'Z" fill="var(--series-1)" fill-opacity="0.10"/>';
+      proj.forEach(function(p, i){ up += (i ? "L" : "M") + X(p.d).toFixed(2) + " " + Y(disp(series[0], p.hi)).toFixed(2) + " "; });
+      for(var k = proj.length - 1; k >= 0; k--) dn += "L" + X(proj[k].d).toFixed(2) + " " + Y(disp(series[0], proj[k].lo)).toFixed(2) + " ";
+      s += '<path d="' + up + dn + 'Z" fill="var(--s1)" fill-opacity="0.10"/>';
     }
 
-    // история: заливка + линия
-    var dPath = "";
-    hist.forEach(function(p,i){ dPath += (i ? "L" : "M") + X(p).toFixed(2) + " " + Y(p.v).toFixed(2) + " "; });
-    if(!proj.length){
-      s += '<path d="' + dPath + 'L' + X(hist[hist.length-1]).toFixed(2) + ' ' + (m.t+ih) +
-           ' L' + X(hist[0]).toFixed(2) + ' ' + (m.t+ih) + ' Z" fill="var(--series-1)" fill-opacity="0.10"/>';
+    // заливка под одиночной линией
+    if(series.length === 1 && !proj.length){
+      var a = "";
+      series[0].rows.forEach(function(r, i){ a += (i ? "L" : "M") + X(r.d).toFixed(2) + " " + Y(disp(series[0], r.v)).toFixed(2) + " "; });
+      a += "L" + X(series[0].rows[series[0].rows.length-1].d).toFixed(2) + " " + (m.t+ih) +
+           " L" + X(series[0].rows[0].d).toFixed(2) + " " + (m.t+ih) + " Z";
+      s += '<path d="' + a + '" fill="' + series[0].color + '" fill-opacity="0.10"/>';
     }
-    s += '<path d="' + dPath + '" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
 
-    // прогнозная траектория
+    // линии
+    series.forEach(function(ser){
+      var d = "";
+      ser.rows.forEach(function(r, i){ d += (i ? "L" : "M") + X(r.d).toFixed(2) + " " + Y(disp(ser, r.v)).toFixed(2) + " "; });
+      s += '<path d="' + d + '" fill="none" stroke="' + ser.color +
+           '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+    });
+
     if(proj.length){
-      var pPath = "M" + X(hist[hist.length-1]).toFixed(2) + " " + Y(hist[hist.length-1].v).toFixed(2) + " ";
-      proj.forEach(function(p){ pPath += "L" + X(p).toFixed(2) + " " + Y(p.v).toFixed(2) + " "; });
-      s += '<path d="' + pPath + '" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-dasharray="5 4" stroke-linecap="round"/>';
+      var pp = "M" + X(series[0].rows[series[0].rows.length-1].d).toFixed(2) + " " +
+               Y(disp(series[0], series[0].rows[series[0].rows.length-1].v)).toFixed(2) + " ";
+      proj.forEach(function(p){ pp += "L" + X(p.d).toFixed(2) + " " + Y(disp(series[0], p.v)).toFixed(2) + " "; });
+      s += '<path d="' + pp + '" fill="none" stroke="var(--s1)" stroke-width="2" stroke-dasharray="5 4" stroke-linecap="round"/>';
     }
 
-    s += '<line x1="' + m.l + '" y1="' + (m.t+ih) + '" x2="' + (m.l+iw) + '" y2="' + (m.t+ih) + '" stroke="var(--axis)" stroke-width="1"/>';
+    s += '<line x1="' + m.l + '" y1="' + (m.t+ih) + '" x2="' + (m.l+iw) + '" y2="' + (m.t+ih) +
+         '" stroke="var(--axis)" stroke-width="1"/>';
 
-    // точки истории
-    var showDots = hist.length <= 40;
-    if(showDots){
-      hist.forEach(function(p,i){
-        var last = (i === hist.length-1);
-        s += '<circle cx="' + X(p).toFixed(2) + '" cy="' + Y(p.v).toFixed(2) + '" r="' + (last ? 5 : 4) +
-             '" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>';
+    // точки
+    series.forEach(function(ser){
+      // точки рисуем, только если между ними есть место — иначе линия читается пунктиром
+      var gapPx = iw / Math.max(1, ser.rows.length - 1);
+      var showDots = gapPx >= 14 && ser.rows.length <= 40 && series.length <= 2;
+      ser.rows.forEach(function(r, i){
+        var last = (i === ser.rows.length-1);
+        if(!showDots && !last) return;
+        s += '<circle cx="' + X(r.d).toFixed(2) + '" cy="' + Y(disp(ser, r.v)).toFixed(2) + '" r="' + (last ? 5 : 4) +
+             '" fill="' + ser.color + '" stroke="var(--surface-1)" stroke-width="2"/>';
       });
-    } else {
-      var lp = hist[hist.length-1];
-      s += '<circle cx="' + X(lp).toFixed(2) + '" cy="' + Y(lp.v).toFixed(2) + '" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>';
-    }
+    });
     if(proj.length){
       var pe = proj[proj.length-1];
-      s += '<circle cx="' + X(pe).toFixed(2) + '" cy="' + Y(pe.v).toFixed(2) + '" r="5" fill="var(--surface-1)" stroke="var(--series-1)" stroke-width="2"/>';
+      s += '<circle cx="' + X(pe.d).toFixed(2) + '" cy="' + Y(disp(series[0], pe.v)).toFixed(2) +
+           '" r="5" fill="var(--surface-1)" stroke="var(--s1)" stroke-width="2"/>';
     }
 
-    // прямые подписи
-    var endPt = proj.length ? proj[proj.length-1] : hist[hist.length-1];
-    var lx = small ? X(endPt) : X(endPt) + 10;
-    var ly = small ? Math.max(m.t + 10, Y(endPt.v) - 13) : Y(endPt.v) + 4;
-    s += '<text x="' + lx + '" y="' + ly + '" text-anchor="' + (small ? "end" : "start") +
-         '" font-size="12.5" font-weight="650" fill="var(--text-primary)" style="font-variant-numeric:tabular-nums">' +
-         fmt(endPt.v) + '</text>';
-    if(!proj.length && hist.length > 2){
-      [[maxI,"MAX",-12],[minI,"MIN",18]].forEach(function(q){
-        var i = q[0];
-        if(i === hist.length-1) return;
-        var anchor = i === 0 ? "start" : "middle";
-        s += '<text x="' + X(hist[i]) + '" y="' + (Y(hist[i].v)+q[2]) + '" text-anchor="' + anchor +
-             '" font-size="11" fill="var(--muted)" style="font-variant-numeric:tabular-nums">' +
-             q[1] + " " + fmt(hist[i].v) + '</text>';
+    // прямые подписи у концов линий (они же — страховка для светлой темы)
+    var labels = series.map(function(ser){
+      var r = ser.rows[ser.rows.length-1];
+      return {y: Y(disp(ser, r.v)), color: ser.color, ser: ser,
+              text: (idx ? (disp(ser, r.v)).toFixed(1) + "%" : fmt(r.v, series.length > 1 ? decimals(r.v) : undefined)),
+              name: ser.pair.title};
+    });
+    if(proj.length){
+      labels = [{y: Y(disp(series[0], proj[proj.length-1].v)), color:"var(--s1)", ser: series[0],
+                 text: fmt(proj[proj.length-1].v), name: series[0].pair.title}];
+    }
+    labels.sort(function(a, b){ return a.y - b.y; });
+    for(var q = 1; q < labels.length; q++){       // не даём подписям наехать друг на друга
+      if(labels[q].y - labels[q-1].y < 15) labels[q].y = labels[q-1].y + 15;
+    }
+    labels.forEach(function(L){
+      var lastD = proj.length ? proj[proj.length-1].d : L.ser.rows[L.ser.rows.length-1].d;
+      var lx = small ? X(lastD) : X(lastD) + 10;
+      var ly = small ? Math.max(m.t + 10, L.y - 13) : L.y + 4;
+      var txt = (series.length > 1 && !small) ? L.name + "  " + L.text : L.text;
+      s += '<text x="' + lx + '" y="' + ly + '" text-anchor="' + (small ? "end" : "start") +
+           '" font-size="12" font-weight="650" fill="var(--text-primary)"' +
+           ' style="font-variant-numeric:tabular-nums">' + esc(txt) + '</text>';
+    });
+
+    // MAX/MIN — только когда линия одна
+    if(series.length === 1 && !proj.length && series[0].rows.length > 2){
+      var rows = series[0].rows, maxI = 0, minI = 0;
+      rows.forEach(function(r, i){ if(r.v > rows[maxI].v) maxI = i; if(r.v < rows[minI].v) minI = i; });
+      [[maxI,"MAX",-12],[minI,"MIN",18]].forEach(function(e){
+        var i = e[0];
+        if(i === rows.length-1) return;
+        s += '<text x="' + X(rows[i].d) + '" y="' + (Y(disp(series[0], rows[i].v))+e[2]) +
+             '" text-anchor="' + (i === 0 ? "start" : "middle") + '" font-size="11" fill="var(--muted)"' +
+             ' style="font-variant-numeric:tabular-nums">' + e[1] + " " + fmt(rows[i].v) + '</text>';
       });
     }
 
     s += '<line class="xh" x1="0" y1="' + m.t + '" x2="0" y2="' + (m.t+ih) + '" stroke="var(--axis)" stroke-width="1" opacity="0"/>';
-    s += '<circle class="xd" r="6" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2" opacity="0"/>';
+    series.forEach(function(ser, si){
+      s += '<circle class="xd xd' + si + '" r="6" fill="' + ser.color + '" stroke="var(--surface-1)" stroke-width="2" opacity="0"/>';
+    });
     s += '<rect class="overlay" x="' + m.l + '" y="' + m.t + '" width="' + iw + '" height="' + ih + '" fill="transparent"/>';
     s += '</svg>';
     svg.outerHTML = s;
 
-    geom[cfg.svg] = {X:X, Y:Y, hist:hist, proj:proj, all:all, wrap:cfg.wrap, tip:cfg.tip, cur:-1};
+    geom[cfg.svg] = {X:X, Y:Y, disp:disp, idx:idx, series:series, proj:proj,
+                     wrap:cfg.wrap, tip:cfg.tip, cur:-1};
     bindHover(cfg.svg);
   }
 
   function bindHover(svgId){
     var g = geom[svgId];
     var svg = $(svgId), tip = $(g.tip);
-    var ov = svg.querySelector(".overlay"), xh = svg.querySelector(".xh"), xd = svg.querySelector(".xd");
-    var series = g.hist.concat(g.proj);
+    var ov = svg.querySelector(".overlay"), xh = svg.querySelector(".xh");
+    var dots = svg.querySelectorAll(".xd");
+    var anchors = g.series[0].rows.concat(g.proj);
 
     function show(i){
-      var p = series[i];
-      if(!p) return;
+      var a = anchors[i];
+      if(!a) return;
       g.cur = i;
-      var x = g.X(p), y = g.Y(p.v);
+      var x = g.X(a.d);
       xh.setAttribute("x1", x); xh.setAttribute("x2", x); xh.setAttribute("opacity", "1");
-      xd.setAttribute("cx", x); xd.setAttribute("cy", y); xd.setAttribute("opacity", "1");
       tip.textContent = "";
-      var d1 = document.createElement("div"); d1.className = "t-d";
-      d1.textContent = shortDate(p.d, true) + (p.fc ? " · расчёт" : "");
-      var d2 = document.createElement("div"); d2.className = "t-v"; d2.textContent = fmt(p.v);
-      tip.appendChild(d1); tip.appendChild(d2);
-      if(p.lo !== undefined){
-        var r0 = document.createElement("div"); r0.className = "t-row";
-        r0.textContent = fmt(p.lo) + " … " + fmt(p.hi);
-        tip.appendChild(r0);
-      } else if(p.chg !== undefined && p.chg !== null){
-        var row = document.createElement("div"); row.className = "t-row";
-        var k = document.createElement("span"); k.className = "key";
-        var tx = document.createElement("span");
-        tx.textContent = fmtSigned(p.chg) + (p.pct === null || p.pct === undefined ? "" : "  (" + pct(p.pct) + ")");
-        row.appendChild(k); row.appendChild(tx); tip.appendChild(row);
-      }
+      var head = document.createElement("div");
+      head.className = "t-d";
+      head.textContent = shortDate(a.d, true) + (a.fc ? " · расчёт" : "");
+      tip.appendChild(head);
+
+      var isProj = !!a.fc;
+      g.series.forEach(function(ser, si){
+        var row = isProj && si > 0 ? null : (isProj ? a : nearestRow(ser.rows, a.d, 6));
+        var dot = dots[si];
+        if(!row){ if(dot) dot.setAttribute("opacity", "0"); return; }
+        var y = g.Y(g.disp(ser, row.v));
+        if(dot){ dot.setAttribute("cx", g.X(row.d)); dot.setAttribute("cy", y); dot.setAttribute("opacity", "1"); }
+        if(g.series.length === 1){
+          var v1 = document.createElement("div");
+          v1.className = "t-v";
+          v1.textContent = fmt(row.v) + (g.idx ? "  ·  " + g.disp(ser, row.v).toFixed(1) + "%" : "");
+          tip.appendChild(v1);
+          if(row.lo !== undefined){
+            var rb = document.createElement("div"); rb.className = "t-row";
+            rb.textContent = fmt(row.lo) + " … " + fmt(row.hi);
+            tip.appendChild(rb);
+          } else if(row.chg !== undefined && row.chg !== null){
+            var rc = document.createElement("div"); rc.className = "t-row";
+            var k1 = document.createElement("span"); k1.className = "key"; k1.style.background = ser.color;
+            var t1 = document.createElement("span");
+            t1.textContent = fmtSigned(row.chg) + (row.pct === null || row.pct === undefined ? "" : "  (" + pct(row.pct) + ")");
+            rc.appendChild(k1); rc.appendChild(t1); tip.appendChild(rc);
+          }
+        } else {
+          var r2 = document.createElement("div"); r2.className = "t-row";
+          var k2 = document.createElement("span"); k2.className = "key"; k2.style.background = ser.color;
+          var t2 = document.createElement("span");
+          t2.style.fontVariantNumeric = "tabular-nums";
+          t2.textContent = ser.pair.title + "  " + fmt(row.v, decimals(row.v)) +
+                           (g.idx ? "  (" + g.disp(ser, row.v).toFixed(1) + "%)" : "");
+          r2.appendChild(k2); r2.appendChild(t2); tip.appendChild(r2);
+        }
+      });
+
       tip.style.opacity = "1";
       var w = tip.offsetWidth || 130, hostW = $(g.wrap).clientWidth;
+      var yTop = g.Y(g.disp(g.series[0], (isProj ? a : nearestRow(g.series[0].rows, a.d, 6) || a).v));
       tip.style.left = Math.min(Math.max(x - w/2, 0), Math.max(0, hostW - w)) + "px";
-      tip.style.top = Math.max(0, y - tip.offsetHeight - 14) + "px";
+      tip.style.top = Math.max(0, yTop - tip.offsetHeight - 14) + "px";
     }
-    function hide(){ g.cur = -1; xh.setAttribute("opacity","0"); xd.setAttribute("opacity","0"); tip.style.opacity = "0"; }
+    function hide(){
+      g.cur = -1; xh.setAttribute("opacity","0");
+      Array.prototype.forEach.call(dots, function(d){ d.setAttribute("opacity","0"); });
+      tip.style.opacity = "0";
+    }
     function nearest(clientX){
       var box = svg.getBoundingClientRect(), px = clientX - box.left, best = 0, bd = Infinity;
-      series.forEach(function(p, i){ var d = Math.abs(g.X(p) - px); if(d < bd){ bd = d; best = i; } });
+      anchors.forEach(function(a, i){ var d = Math.abs(g.X(a.d) - px); if(d < bd){ bd = d; best = i; } });
       return best;
     }
     ov.addEventListener("pointermove", function(e){ show(nearest(e.clientX)); });
@@ -868,12 +1054,13 @@
     ov.addEventListener("pointerleave", hide);
     svg.addEventListener("blur", hide);
     svg.addEventListener("keydown", function(e){
-      if(e.key === "ArrowRight"){ show(g.cur < 0 ? 0 : Math.min(series.length-1, g.cur+1)); e.preventDefault(); }
-      else if(e.key === "ArrowLeft"){ show(g.cur < 0 ? series.length-1 : Math.max(0, g.cur-1)); e.preventDefault(); }
+      if(e.key === "ArrowRight"){ show(g.cur < 0 ? 0 : Math.min(anchors.length-1, g.cur+1)); e.preventDefault(); }
+      else if(e.key === "ArrowLeft"){ show(g.cur < 0 ? anchors.length-1 : Math.max(0, g.cur-1)); e.preventDefault(); }
       else if(e.key === "Escape"){ hide(); }
     });
   }
 
+  /* ============ график изменений ============ */
   function drawBars(rows){
     var host = $("barWrap"), svg = $("barSvg");
     var W = Math.max(280, host.clientWidth || 640);
@@ -905,8 +1092,8 @@
            '<text x="' + (m.l-9) + '" y="' + (y+4) + '" text-anchor="end" font-size="11" fill="var(--muted)"' +
            ' style="font-variant-numeric:tabular-nums">' + tv.toFixed(dec) + '</text>';
     });
-    data.forEach(function(r,i){
-      var up = r.chg >= 0, c = up ? "var(--series-1)" : "var(--series-neg)";
+    data.forEach(function(r, i){
+      var up = r.chg >= 0, c = up ? "var(--s1)" : "var(--series-neg)";
       var y0 = Y(r.chg), h = Math.abs(zero - y0), x = Xc(i) - bw/2;
       var rad = Math.min(4, bw/2, h), d;
       if(up) d = "M" + x + " " + zero + " L" + x + " " + (y0+rad) + " Q" + x + " " + y0 + " " + (x+rad) + " " + y0 +
@@ -917,14 +1104,14 @@
     });
     s += '<line x1="' + m.l + '" y1="' + zero + '" x2="' + (m.l+iw) + '" y2="' + zero + '" stroke="var(--axis)" stroke-width="1"/>';
     var maxLab = small ? 4 : 7, stepI = Math.max(1, Math.ceil(n / maxLab));
-    data.forEach(function(r,i){
+    data.forEach(function(r, i){
       var last = (i === n-1);
       if(i % stepI !== 0 && !last) return;
       if(!last && (n-1-i) < stepI) return;
       s += '<text x="' + Xc(i) + '" y="' + (m.t+ih+19) + '" text-anchor="middle" font-size="11" fill="var(--muted)">' +
            esc(shortDate(r.d, withYear)) + '</text>';
     });
-    data.forEach(function(r,i){
+    data.forEach(function(r, i){
       s += '<rect class="hit" data-i="' + i + '" x="' + (Xc(i)-band/2) + '" y="' + m.t + '" width="' + band + '" height="' + ih + '" fill="transparent"/>';
     });
     s += '</svg>';
@@ -962,7 +1149,7 @@
 
   /* ============ подготовка рядов ============ */
   function decorate(points){
-    var rows = points.slice().sort(function(a,b){ return a.d < b.d ? -1 : 1; });
+    var rows = points.slice().sort(function(a, b){ return a.d < b.d ? -1 : 1; });
     for(var i = 0; i < rows.length; i++){
       rows[i] = {d: rows[i].d, v: rows[i].v, chg: null, pct: null};
       if(i > 0){
@@ -972,11 +1159,32 @@
     }
     return rows;
   }
-
   function curName(c){ return CUR[c] ? CUR[c].n : c; }
   function curSym(c){ return CUR[c] ? CUR[c].s : c; }
+  function pairById(id){ return PAIRS.filter(function(p){ return p.id === id; })[0] || null; }
+  function activePairs(){
+    var out = [state.pair];
+    state.cmp.forEach(function(id){
+      var p = pairById(id);
+      if(p && out.indexOf(p) < 0) out.push(p);
+    });
+    return out;
+  }
+  function chartSeries(){
+    return state.series.filter(function(s){ return s.rows.length; }).map(function(s, i){
+      return {pair: s.pair, rows: s.rows, color: SERIES_COLORS[i % SERIES_COLORS.length]};
+    });
+  }
+  function effectiveMode(){
+    var ser = chartSeries();
+    if(ser.length < 2) return "abs";
+    if(state.scaleMode !== "auto") return state.scaleMode;
+    var vals = ser.map(function(s){ return s.rows[s.rows.length-1].v; });
+    var mx = Math.max.apply(null, vals), mn = Math.min.apply(null, vals);
+    return (mn > 0 && mx / mn > 5) ? "idx" : "abs";   // слишком разные масштабы — сравниваем в процентах
+  }
 
-  /* ============ статус ============ */
+  /* ============ статус и пустые состояния ============ */
   function setStatus(kind, text, link){
     var st = $("status");
     st.textContent = "";
@@ -991,7 +1199,6 @@
       st.appendChild(a);
     }
   }
-
   function emptyState(hostId, title, msg, acts){
     var el = $(hostId);
     el.textContent = "";
@@ -1012,12 +1219,40 @@
   }
 
   /* ============ вкладка «Динамика курса» ============ */
+  function renderLegend(ser, mode){
+    var el = $("legend");
+    el.textContent = "";
+    if(ser.length < 2){ el.classList.add("hidden"); return; }
+    el.classList.remove("hidden");
+    ser.forEach(function(s){
+      var rows = s.rows, last = rows[rows.length-1], first = rows[0];
+      var ch = first.v ? (last.v - first.v) / first.v * 100 : 0;
+      var item = document.createElement("div"); item.className = "item";
+      var k = document.createElement("span"); k.className = "k"; k.style.background = s.color;
+      var nm = document.createElement("span"); nm.className = "nm"; nm.textContent = s.pair.title;
+      var v = document.createElement("span"); v.className = "v";
+      v.textContent = fmt(last.v, decimals(last.v)) + " " + curSym(s.pair.q);
+      var c = document.createElement("span");
+      c.className = "v " + (ch >= 0 ? "up" : "down");
+      c.textContent = pct(ch);
+      item.appendChild(k); item.appendChild(nm); item.appendChild(v); item.appendChild(c);
+      el.appendChild(item);
+    });
+  }
+
   function renderDyn(){
-    var rows = state.rows, pair = state.pair;
+    var ser = chartSeries(), mode = effectiveMode();
+    var prim = state.series[0], pair = prim ? prim.pair : state.pair;
+    var rows = prim ? prim.rows : [];
     var sym = curSym(pair.q);
-    $("lineTitle").textContent = "Курс " + pair.title + ", " + sym + " за 1 " + pair.b;
-    $("thRate").textContent = "Курс, " + sym;
+
+    $("scaleSeg").classList.toggle("hidden", ser.length < 2);
+    markSeg("scaleSeg", mode);
+    $("lineTitle").textContent = ser.length > 1
+      ? (mode === "idx" ? "Сравнение, % к началу периода" : "Сравнение курсов, " + sym)
+      : "Курс " + pair.title + ", " + sym + " за 1 " + pair.b;
     $("heroCur").textContent = " " + sym;
+    $("barTitle").textContent = "Изменение " + pair.title + " к предыдущему значению";
 
     var few = rows.length < 2;
     $("lineWrap").classList.toggle("hidden", few);
@@ -1032,12 +1267,13 @@
     if(!rows.length){
       $("heroVal").textContent = "—"; $("heroDelta").textContent = "—";
       ["tMax","tMin","tAvg","tChg"].forEach(function(id){ $(id).textContent = "—"; });
+      renderLegend([], mode);
       return;
     }
 
     var vals = rows.map(function(r){ return r.v; });
     var max = Math.max.apply(null, vals), min = Math.min.apply(null, vals);
-    var avg = vals.reduce(function(a,b){ return a+b; }, 0) / vals.length;
+    var avg = vals.reduce(function(a, b){ return a + b; }, 0) / vals.length;
     var first = rows[0], last = rows[rows.length-1];
     var base = (rows.length > 1) ? first.v : (state.latest && state.latest.prev) || first.v;
     var chgPct = base ? (last.v - base) / base * 100 : 0;
@@ -1065,12 +1301,29 @@
     $("rangeNote").textContent = note;
     $("tblNote").textContent = note;
 
+    renderLegend(ser, mode);
     if(!few){
-      drawLine({wrap:"lineWrap", svg:"lineSvg", tip:"lineTip", hist:rows, aria:"График курса " + pair.title});
+      drawLine({wrap:"lineWrap", svg:"lineSvg", tip:"lineTip", series:ser, mode:mode,
+                aria:"График курса " + ser.map(function(s){ return s.pair.title; }).join(", ")});
       drawBars(rows);
     }
+    renderTable(ser);
+  }
 
-    var tb = $("tbody");
+  function renderTable(ser){
+    var extra = ser.slice(1);
+    var head = $("tblHead");
+    head.textContent = "";
+    var hr = document.createElement("tr");
+    [["Дата","d"],["Курс, " + curSym(ser[0].pair.q),"r"],["Изм.","c"],["Изм., %","p"]].forEach(function(h){
+      var th = document.createElement("th"); th.textContent = h[0]; hr.appendChild(th);
+    });
+    extra.forEach(function(s){
+      var th = document.createElement("th"); th.textContent = s.pair.title; hr.appendChild(th);
+    });
+    head.appendChild(hr);
+
+    var rows = ser[0].rows, tb = $("tbody");
     tb.textContent = "";
     for(var i = rows.length - 1; i >= 0; i--){
       var r = rows[i], tr = document.createElement("tr");
@@ -1082,6 +1335,10 @@
         tr.appendChild(td(fmtSigned(r.chg), r.chg >= 0 ? "up" : "down"));
         tr.appendChild(td(r.pct === null ? "—" : pct(r.pct), r.chg >= 0 ? "up" : "down"));
       }
+      extra.forEach(function(s){
+        var m = nearestRow(s.rows, r.d, 6);
+        tr.appendChild(td(m ? fmt(m.v, decimals(m.v)) : "—"));
+      });
       tb.appendChild(tr);
     }
   }
@@ -1121,8 +1378,9 @@
   }
 
   function renderForecast(){
-    var rows = state.rows, pair = state.pair, sym = curSym(pair.q);
-    $("fcCur").textContent = " " + sym;
+    var prim = state.series[0];
+    var rows = prim ? prim.rows : [], pair = prim ? prim.pair : state.pair;
+    $("fcCur").textContent = " " + curSym(pair.q);
     $("fcTitle").textContent = "История и расчётная траектория " + pair.title;
     var f = computeForecast(rows, state.horizon);
     if(!f){
@@ -1152,7 +1410,8 @@
     $("fcN").textContent = f.n;
     $("fcBase").textContent = "период: " + state.period.name.toLowerCase();
 
-    drawLine({wrap:"fcWrap", svg:"fcSvg", tip:"fcTip", hist:rows, proj:f.pts,
+    drawLine({wrap:"fcWrap", svg:"fcSvg", tip:"fcTip", mode:"abs",
+              series:[{pair: pair, rows: rows, color: SERIES_COLORS[0]}], proj: f.pts,
               aria:"История и расчётная траектория " + pair.title});
   }
 
@@ -1169,7 +1428,6 @@
     var avail = !!t;
     ["cAmt","cFrom","cTo","cSwap","cRes"].forEach(function(id){ $(id).disabled = !avail; });
     if(!avail){
-      $("crossEmpty").classList.remove("hidden");
       emptyState("crossEmpty", "Источник не отдаёт таблицу всех валют",
         "Кросс-курсы считаются по полной таблице курсов — её публикуют ЦБ и Форекс. " +
         "Биржевой источник даёт только торгуемые инструменты.",
@@ -1181,7 +1439,6 @@
     }
     $("crossEmpty").classList.add("hidden");
 
-    // конвертер
     var a = $("cFrom").value, b = $("cTo").value;
     var amt = parseFloat(($("cAmt").value || "0").replace(/\s/g,"").replace(",","."));
     var r = crossRate(a, b);
@@ -1191,10 +1448,10 @@
       var res = amt * r;
       $("cRes").value = money(res);
       $("cBig").textContent = money(res) + " " + curSym(b);
-      $("cRate").textContent = "1 " + a + " = " + fmt(r) + " " + b + "   ·   1 " + b + " = " + fmt(1/r) + " " + a;
+      $("cRate").textContent = "1 " + a + " = " + fmt(r, decimals(r)) + " " + b +
+                               "   ·   1 " + b + " = " + fmt(1/r, decimals(1/r)) + " " + a;
     }
 
-    // матрица
     var list = MATRIX.filter(function(c){ return t[c]; });
     var th = $("mHead"); th.textContent = "";
     var hr = document.createElement("tr");
@@ -1210,7 +1467,7 @@
       list.forEach(function(cc){
         var td = document.createElement("td");
         if(rc === cc) td.textContent = "—";
-        else { var v = crossRate(rc, cc); td.textContent = v === null ? "—" : fmt(v); }
+        else { var v = crossRate(rc, cc); td.textContent = v === null ? "—" : fmt(v, decimals(v)); }
         tr.appendChild(td);
       });
       tb.appendChild(tr);
@@ -1219,7 +1476,8 @@
 
   /* ============ загрузка ============ */
   function render(){
-    var lastRow = state.rows.length ? state.rows[state.rows.length-1] : null;
+    var prim = state.series[0];
+    var lastRow = prim && prim.rows.length ? prim.rows[prim.rows.length-1] : null;
     DEC = (state.view === "cross" || !lastRow) ? null : decimals(lastRow.v);
     if(state.view === "dyn") renderDyn();
     else if(state.view === "fc") renderForecast();
@@ -1228,6 +1486,7 @@
 
   function load(){
     if(state.manual){
+      state.series = [{pair: state.pair, rows: state.manual, err: null}];
       state.rows = state.manual;
       state.table = null;
       setStatus("demo", state.demoNote ||
@@ -1235,39 +1494,41 @@
       render();
       return Promise.resolve();
     }
-    var pair = state.pair, period = state.period, src = state.source;
+    var pairs = activePairs(), range = currentRange(), src = state.source;
     var prov = PROVIDERS[src];
     var srcMeta = SOURCES.filter(function(s){ return s.id === src; })[0];
     var id = ++state.reqId;
     state.loading = true;
     $("refreshBtn").classList.add("spin");
     document.querySelectorAll(".chart").forEach(function(c){ c.classList.add("stale"); });
-    setStatus("", "Загружаю " + pair.title + " — " + srcMeta.full + "…");
+    setStatus("", "Загружаю " + pairs.map(function(p){ return p.title; }).join(", ") +
+                  " — " + srcMeta.full + "…");
 
-    return Promise.resolve().then(function(){ return prov.load(pair, period); })
+    return Promise.resolve().then(function(){ return prov.load(pairs, range); })
       .then(function(res){
         if(id !== state.reqId) return;
-        state.rows = decorate(res.points);
+        state.series = res.series.map(function(s){
+          return {pair: s.pair, rows: decorate(s.points), err: s.err};
+        });
+        state.rows = state.series[0].rows;
         state.table = res.table || null;
         state.latest = {date: res.date, prev: res.prev};
+        var failed = state.series.filter(function(s){ return s.err; });
         var extra = res.note ? " · " + res.note : "";
+        if(failed.length) extra += " · " + failed.map(function(s){ return s.err; }).join("; ");
         setStatus("live", srcMeta.full + " · данные на " + shortDate(res.date, true) + extra);
         render();
       })
       .catch(function(e){
         if(id !== state.reqId) return;
         var msg = (e && e.message) ? e.message : "не удалось получить данные";
-        state.rows = []; state.table = null;
+        state.series = []; state.rows = []; state.table = null;
         if(e && e.rbc){
           setStatus("err", msg, {href:"https://quote.rbc.ru/", text:"Открыть quote.rbc.ru"});
-        } else if(e && e.soft){
-          setStatus("err", msg);
-        } else {
-          setStatus("err", srcMeta.full + ": " + msg +
-            ". Запрос мог заблокировать браузер: страницу надо открывать по http(s), а не файлом, " +
-            "и не в песочнице, которая запрещает внешние запросы.");
+          render();
+          return;
         }
-        // страница не остаётся пустой: показываем демо-ряд и пишем, почему
+        if(e && e.soft){ setStatus("err", msg); render(); return; }
         useDemo(srcMeta.full + ": " + msg + " · показан демо-ряд USD/RUB из бумажной таблицы");
       })
       .then(function(){
@@ -1292,7 +1553,7 @@
   /* ============ парсер «своих данных» ============ */
   var MD = [0,31,59,90,120,151,181,212,243,273,304,334];
   function parseManual(text){
-    var out = [], lines = text.split("\n"), year = new Date().getUTCFullYear(), prevDoy = null, y = year;
+    var out = [], lines = text.split("\n"), y = new Date().getUTCFullYear(), prevDoy = null;
     for(var i=0;i<lines.length;i++){
       var line = lines[i].trim();
       if(!line) continue;
@@ -1320,31 +1581,33 @@
   }
 
   /* ============ элементы управления ============ */
-  function buildPairSelect(){
-    var sel = $("pairSel");
+  function pairOptions(sel, withEmpty, emptyLabel){
     sel.textContent = "";
-    var groups = [{t:"К рублю", f:function(p){ return p.q === "RUB"; }},
-                  {t:"Кросс-курсы", f:function(p){ return p.q !== "RUB"; }}];
-    groups.forEach(function(g){
+    if(withEmpty){
+      var o0 = document.createElement("option");
+      o0.value = ""; o0.textContent = emptyLabel;
+      sel.appendChild(o0);
+    }
+    [{t:"К рублю", f:function(p){ return p.q === "RUB"; }},
+     {t:"Кросс-курсы", f:function(p){ return p.q !== "RUB"; }}].forEach(function(g){
       var og = document.createElement("optgroup"); og.label = g.t;
       PAIRS.filter(g.f).forEach(function(p){
         var o = document.createElement("option");
         o.value = p.id;
-        o.textContent = p.title + " — " + curName(p.b);
+        o.textContent = p.title + (withEmpty ? "" : " — " + curName(p.b));
         og.appendChild(o);
       });
       sel.appendChild(og);
     });
-    sel.value = state.pair.id;
   }
-  function buildSeg(hostId, items, activeId, onPick, attr){
+  function buildSeg(hostId, items, activeId, onPick){
     var host = $(hostId);
     host.textContent = "";
     items.forEach(function(it){
       var b = document.createElement("button");
       b.type = "button";
       b.textContent = it.name;
-      b.setAttribute(attr || "data-id", it.id);
+      b.setAttribute("data-id", it.id);
       b.setAttribute("aria-pressed", it.id === activeId ? "true" : "false");
       b.addEventListener("click", function(){ onPick(it.id); });
       host.appendChild(b);
@@ -1368,13 +1631,17 @@
   }
 
   function setPair(id){
-    var p = PAIRS.filter(function(x){ return x.id === id; })[0];
+    var p = pairById(id);
     if(!p) return;
     state.pair = p;
     $("pairSel").value = id;
-    $("title").textContent = p.title;
-    $("pairName").textContent = curName(p.b) + " → " + curName(p.q);
-    document.title = p.title + " · Курсы валют";
+    syncHead();
+    remember();
+    load();
+  }
+  function setCmp(slot, id){
+    state.cmp[slot] = id || null;
+    state.scaleMode = "auto";
     remember();
     load();
   }
@@ -1389,7 +1656,12 @@
     if(!p) return;
     state.period = p;
     markSeg("perSeg", id);
+    $("rangeBox").classList.toggle("on", id === "custom");
     remember();
+    if(id === "custom" && !(state.custom.from && state.custom.till)){
+      $("rangeErr").textContent = "";
+      return;                        // ждём, пока выберут даты
+    }
     load();
   }
   function setView(v){
@@ -1403,12 +1675,39 @@
     remember();
     render();
   }
+  function syncHead(){
+    var titles = activePairs().map(function(p){ return p.title; });
+    $("title").textContent = titles.join(" · ");
+    $("pairName").textContent = titles.length > 1
+      ? "сравнение " + titles.length + " пар"
+      : curName(state.pair.b) + " → " + curName(state.pair.q);
+    document.title = titles[0] + " · Курсы валют";
+  }
   function remember(){
     try {
       localStorage.setItem("rates-state", JSON.stringify({
-        pair: state.pair.id, source: state.source, period: state.period.id, view: state.view
+        pair: state.pair.id, source: state.source, period: state.period.id, view: state.view,
+        cmp: state.cmp, custom: state.custom, scaleMode: state.scaleMode
       }));
     } catch(e){}
+  }
+
+  /* ============ произвольный период ============ */
+  function applyCustomRange(from, till){
+    var err = $("rangeErr");
+    var todayIso = iso(new Date());
+    if(!from || !till){ err.textContent = "Укажите обе даты."; return; }
+    if(from > till){ err.textContent = "Начало периода позже конца — поменяйте даты местами."; return; }
+    if(till > todayIso){ err.textContent = "Конец периода в будущем — курса на эту дату ещё нет."; return; }
+    if(daysBetween(from, till) < 2){ err.textContent = "Слишком короткий период: нужно хотя бы 2 дня."; return; }
+    err.textContent = "";
+    state.custom = {from: from, till: till};
+    $("dFrom").value = from; $("dTo").value = till;
+    state.period = PERIODS.filter(function(p){ return p.id === "custom"; })[0];
+    markSeg("perSeg", "custom");
+    $("rangeBox").classList.add("on");
+    remember();
+    load();
   }
 
   /* ============ подвал и настройки ============ */
@@ -1455,9 +1754,19 @@
   /* ============ события ============ */
   function wire(){
     $("pairSel").addEventListener("change", function(){ setPair(this.value); });
+    $("cmp1").addEventListener("change", function(){ setCmp(0, this.value); syncHead(); });
+    $("cmp2").addEventListener("change", function(){ setCmp(1, this.value); syncHead(); });
+
     $("viewTabs").addEventListener("click", function(e){
       var b = e.target.closest("button[data-view]");
       if(b) setView(b.getAttribute("data-view"));
+    });
+    Array.prototype.forEach.call($("scaleSeg").querySelectorAll("button"), function(b){
+      b.addEventListener("click", function(){
+        state.scaleMode = b.getAttribute("data-id");
+        remember();
+        renderDyn();
+      });
     });
     Array.prototype.forEach.call($("hzSeg").querySelectorAll("button"), function(b){
       b.addEventListener("click", function(){
@@ -1470,18 +1779,42 @@
     });
     $("refreshBtn").addEventListener("click", function(){ memCache = {}; load(); });
 
+    $("rangeApply").addEventListener("click", function(){
+      applyCustomRange($("dFrom").value, $("dTo").value);
+    });
+    $("rangeMonth").addEventListener("click", function(){
+      applyCustomRange(iso(dayShift(new Date(), -30)), iso(new Date()));
+    });
+    $("rangeYtd").addEventListener("click", function(){
+      var now = new Date();
+      applyCustomRange(now.getUTCFullYear() + "-01-01", iso(now));
+    });
+    ["dFrom","dTo"].forEach(function(id){
+      $(id).addEventListener("keydown", function(e){
+        if(e.key === "Enter") applyCustomRange($("dFrom").value, $("dTo").value);
+      });
+    });
+
     $("csvBtn").addEventListener("click", function(){
-      var rows = state.rows;
-      if(!rows.length) return;
-      var lines = ["Дата;Курс;Изменение;Изменение %"];
-      rows.forEach(function(r){
-        lines.push([r.d, r.v.toFixed(6), r.chg === null ? "" : r.chg.toFixed(6),
-                    r.pct === null ? "" : r.pct.toFixed(3)].join(";"));
+      var ser = chartSeries();
+      if(!ser.length) return;
+      var extra = ser.slice(1);
+      var head = ["Дата", ser[0].pair.title, "Изменение", "Изменение %"]
+                   .concat(extra.map(function(s){ return s.pair.title; }));
+      var lines = [head.join(";")];
+      ser[0].rows.forEach(function(r){
+        var cells = [r.d, r.v.toFixed(6), r.chg === null ? "" : r.chg.toFixed(6),
+                     r.pct === null ? "" : r.pct.toFixed(3)];
+        extra.forEach(function(s){
+          var m = nearestRow(s.rows, r.d, 6);
+          cells.push(m ? m.v.toFixed(6) : "");
+        });
+        lines.push(cells.join(";"));
       });
       var blob = new Blob(["﻿" + lines.join("\n")], {type:"text/csv;charset=utf-8"});
       var a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = state.pair.id + "-" + state.source + ".csv";
+      a.download = ser.map(function(s){ return s.pair.id; }).join("-") + "-" + state.source + ".csv";
       document.body.appendChild(a); a.click();
       setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 0);
     });
@@ -1544,25 +1877,38 @@
     try {
       var saved = JSON.parse(localStorage.getItem("rates-state") || "null");
       if(saved){
-        var p = PAIRS.filter(function(x){ return x.id === saved.pair; })[0];
+        var p = pairById(saved.pair);
         if(p) state.pair = p;
         if(PROVIDERS[saved.source]) state.source = saved.source;
         var pr = PERIODS.filter(function(x){ return x.id === saved.period; })[0];
         if(pr) state.period = pr;
         if(["dyn","fc","cross"].indexOf(saved.view) >= 0) state.view = saved.view;
+        if(saved.cmp && saved.cmp.length === 2) state.cmp = saved.cmp.map(function(id){ return pairById(id) ? id : null; });
+        if(saved.custom && saved.custom.from && saved.custom.till) state.custom = saved.custom;
+        if(["auto","abs","idx"].indexOf(saved.scaleMode) >= 0) state.scaleMode = saved.scaleMode;
       }
     } catch(e){}
 
-    buildPairSelect();
+    pairOptions($("pairSel"), false);
+    pairOptions($("cmp1"), true, "+ вторая пара");
+    pairOptions($("cmp2"), true, "+ третья пара");
+    $("pairSel").value = state.pair.id;
+    $("cmp1").value = state.cmp[0] || "";
+    $("cmp2").value = state.cmp[1] || "";
+
     buildSeg("srcSeg", SOURCES, state.source, setSource);
     buildSeg("perSeg", PERIODS, state.period.id, setPeriod);
     buildCurSelects();
     buildFooter();
     wire();
 
-    $("title").textContent = state.pair.title;
-    $("pairName").textContent = curName(state.pair.b) + " → " + curName(state.pair.q);
-    document.title = state.pair.title + " · Курсы валют";
+    var todayIso = iso(new Date());
+    $("dFrom").max = todayIso; $("dTo").max = todayIso;
+    $("dFrom").value = state.custom.from || iso(dayShift(new Date(), -30));
+    $("dTo").value = state.custom.till || todayIso;
+    $("rangeBox").classList.toggle("on", state.period.id === "custom");
+
+    syncHead();
     $("dataIn").value = DEMO.map(function(r){ return r[0] + " " + r[1].toFixed(4); }).join("\n");
     setView(state.view);
     load();
