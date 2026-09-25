@@ -678,9 +678,9 @@
   var PROVIDERS = {cbr: providerCBR, moex: providerMOEX, fx: providerFX, rbc: providerRBC};
 
   /* ============ шкалы и графики ============ */
-  function niceScale(lo, hi, want){
+  function niceScale(lo, hi, want, padFrac){
     if(hi === lo){ hi = lo + Math.abs(lo || 1) * 0.01; lo = lo - Math.abs(lo || 1) * 0.01; }
-    var pad = (hi - lo) * 0.12; lo -= pad; hi += pad;
+    var pad = (hi - lo) * (padFrac === undefined ? 0.12 : padFrac); lo -= pad; hi += pad;
     var raw = (hi - lo) / want;
     var mag = Math.pow(10, Math.floor(Math.log(raw)/Math.LN10));
     var norm = raw / mag, step;
@@ -886,7 +886,7 @@
     if(data.length < 1){ svg.outerHTML = '<svg id="barSvg" height="0"></svg>'; return; }
     var cv = data.map(function(r){ return r.chg; });
     var lo = Math.min.apply(null, cv), hi = Math.max.apply(null, cv);
-    var sc = niceScale(Math.min(0, lo), Math.max(0, hi), 3);
+    var sc = niceScale(Math.min(0, lo), Math.max(0, hi), small ? 4 : 5, 0.04);
     if(lo >= 0){ sc.lo = 0; sc.ticks = sc.ticks.filter(function(t){ return t >= 0; }); }
     if(hi <= 0){ sc.hi = 0; sc.ticks = sc.ticks.filter(function(t){ return t <= 0; }); }
     var dec = tickFmt(sc.step);
