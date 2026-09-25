@@ -1,0 +1,1576 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Курсы валют ЦБ и биржи</title>
+<style>
+  :root{
+    color-scheme: light;
+    --page:#f9f9f7; --surface-1:#fcfcfb;
+    --text-primary:#0b0b0b; --text-secondary:#52514e; --muted:#898781;
+    --grid:#e1e0d9; --axis:#c3c2b7;
+    --series-1:#2a78d6; --series-neg:#e34948;
+    --up:#006300; --down:#d03b3b; --warn:#b06a00;
+    --border:rgba(11,11,11,.10); --wash:rgba(11,11,11,.04);
+    --radius:14px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:where(:not([data-theme="light"])){
+      color-scheme: dark;
+      --page:#0d0d0d; --surface-1:#1a1a19;
+      --text-primary:#ffffff; --text-secondary:#c3c2b7; --muted:#898781;
+      --grid:#2c2c2a; --axis:#383835;
+      --series-1:#3987e5; --series-neg:#e66767;
+      --up:#0ca30c; --down:#e66767; --warn:#fab219;
+      --border:rgba(255,255,255,.10); --wash:rgba(255,255,255,.06);
+    }
+  }
+  :root[data-theme="dark"]{
+    color-scheme: dark;
+    --page:#0d0d0d; --surface-1:#1a1a19;
+    --text-primary:#ffffff; --text-secondary:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --axis:#383835;
+    --series-1:#3987e5; --series-neg:#e66767;
+    --up:#0ca30c; --down:#e66767; --warn:#fab219;
+    --border:rgba(255,255,255,.10); --wash:rgba(255,255,255,.06);
+  }
+
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--page);color:var(--text-primary);
+       font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1040px;margin:0 auto;padding:18px 16px 56px}
+
+  .head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+  .head > div{min-width:0}
+  h1{margin:0;font-size:21px;font-weight:700}
+  .sub{margin:3px 0 0;font-size:13px;color:var(--text-secondary)}
+  .headbtns{display:flex;gap:8px;flex:0 0 auto}
+  .iconbtn{border:1px solid var(--border);background:var(--surface-1);color:var(--text-secondary);
+           border-radius:10px;width:36px;height:36px;font-size:15px;cursor:pointer;line-height:1;flex:0 0 auto}
+  .iconbtn:hover{background:var(--wash)}
+  .iconbtn.spin{animation:sp .8s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+
+  /* controls */
+  .ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+  select{font-family:inherit;font-size:13.5px;font-weight:600;color:var(--text-primary);
+         background:var(--surface-1);border:1px solid var(--border);border-radius:10px;
+         padding:9px 11px;cursor:pointer;max-width:100%}
+  .seg{display:flex;gap:2px;background:var(--surface-1);border:1px solid var(--border);
+       border-radius:10px;padding:2px;overflow-x:auto;max-width:100%}
+  .seg button{border:0;background:transparent;color:var(--text-secondary);font-size:13px;font-weight:500;
+              padding:7px 12px;border-radius:8px;cursor:pointer;white-space:nowrap;font-family:inherit}
+  .seg button:hover{background:var(--wash)}
+  .seg button[aria-pressed="true"]{background:var(--series-1);color:#fff}
+  .seg.small button{font-size:12.5px;padding:6px 10px}
+  .spacer{flex:1}
+
+  /* view tabs */
+  .tabs{display:flex;gap:20px;border-bottom:1px solid var(--border);margin:4px 0 14px;overflow-x:auto}
+  .tabs button{border:0;background:transparent;font-family:inherit;font-size:14.5px;font-weight:600;
+               color:var(--muted);padding:9px 1px 10px;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
+  .tabs button[aria-selected="true"]{color:var(--text-primary);border-bottom-color:var(--series-1)}
+
+  /* status */
+  .status{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;
+          color:var(--text-secondary);margin:0 0 14px;min-height:18px}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:0 0 auto}
+  .dot.live{background:#0ca30c} .dot.demo{background:#fab219} .dot.err{background:var(--down)}
+  .status a{color:var(--series-1)}
+
+  .card{background:var(--surface-1);border:1px solid var(--border);border-radius:var(--radius);padding:18px}
+  .card + .card{margin-top:14px}
+  .card-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+  .card-h h2{margin:0;font-size:15px;font-weight:650}
+  .card-h .note{font-size:12.5px;color:var(--muted)}
+  .stale{opacity:.45;transition:opacity .15s}
+
+  .top{display:grid;grid-template-columns:minmax(230px,1fr) 2fr;gap:14px;margin-bottom:14px}
+  .hero{display:flex;flex-direction:column;justify-content:center}
+  .hero .lbl{font-size:11.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
+  .hero .val{font-size:48px;font-weight:650;line-height:1.05;margin-top:8px;letter-spacing:-1px}
+  .hero .cur{font-size:20px;font-weight:500;color:var(--text-secondary);margin-left:5px}
+  .hero .delta{margin-top:10px;font-size:14px;font-weight:600}
+  .hero .when{margin-top:4px;font-size:12.5px;color:var(--muted)}
+  .up{color:var(--up)} .down{color:var(--down)}
+
+  .tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+  .tile{background:var(--surface-1);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px}
+  .tile .lbl{font-size:11.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
+  .tile .num{font-size:25px;font-weight:650;margin-top:7px;line-height:1}
+  .tile .sub2{margin-top:5px;font-size:12px;color:var(--muted)}
+
+  .chart{position:relative;width:100%}
+  .chart svg{display:block;width:100%;overflow:visible;touch-action:pan-y}
+  .chart svg:focus-visible{outline:2px solid var(--series-1);outline-offset:3px;border-radius:8px}
+  .tip{position:absolute;pointer-events:none;opacity:0;transition:opacity .1s;z-index:5;
+       background:var(--surface-1);border:1px solid var(--border);border-radius:10px;padding:8px 10px;
+       box-shadow:0 4px 14px rgba(0,0,0,.12);min-width:118px}
+  .tip .t-d{font-size:11.5px;color:var(--muted)}
+  .tip .t-v{font-size:16px;font-weight:650;margin-top:3px;font-variant-numeric:tabular-nums}
+  .tip .t-row{display:flex;align-items:center;gap:7px;margin-top:5px;font-size:12.5px;color:var(--text-secondary)}
+  .tip .key{width:14px;height:2px;border-radius:2px;background:var(--series-1);flex:0 0 auto}
+
+  .tbl-scroll{overflow-x:auto;margin-top:10px}
+  table{border-collapse:collapse;width:100%;font-size:13.5px}
+  th,td{padding:9px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--grid)}
+  th:first-child,td:first-child{text-align:left}
+  thead th{font-size:11.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);font-weight:600}
+  tbody td{font-variant-numeric:tabular-nums;color:var(--text-secondary)}
+  tbody td.strong{color:var(--text-primary);font-weight:600}
+  tbody tr:last-child td{border-bottom:0}
+  tbody tr:hover td{background:var(--wash)}
+
+  .empty{padding:26px 4px;text-align:center;color:var(--text-secondary);font-size:13.5px;line-height:1.6}
+  .empty b{color:var(--text-primary)}
+  .empty .acts{margin-top:12px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+  .ghost{border:1px solid var(--border);background:var(--surface-1);color:var(--text-secondary);
+         border-radius:10px;padding:8px 13px;font-size:13px;cursor:pointer;font-family:inherit}
+  .ghost:hover{background:var(--wash)}
+
+  /* converter */
+  .conv{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:end;margin-top:6px}
+  .fld{display:flex;flex-direction:column;gap:6px;min-width:0}
+  .fld label{font-size:11.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
+  .fld input, .fld select{font-family:inherit;font-size:15px;padding:10px 11px;border-radius:10px;
+        border:1px solid var(--border);background:var(--page);color:var(--text-primary);width:100%}
+  .swap{align-self:end;margin-bottom:4px}
+  .conv-out{margin-top:16px;padding-top:14px;border-top:1px solid var(--grid)}
+  .conv-out .big{font-size:34px;font-weight:650;letter-spacing:-.5px}
+  .conv-out .rate{margin-top:6px;font-size:13px;color:var(--text-secondary)}
+
+  details{margin-top:14px;background:var(--surface-1);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px}
+  summary{cursor:pointer;font-size:14px;font-weight:600;list-style:none}
+  summary::-webkit-details-marker{display:none}
+  summary::before{content:"▸ ";color:var(--muted)}
+  details[open] summary::before{content:"▾ "}
+  textarea{width:100%;min-height:130px;margin-top:12px;border:1px solid var(--border);border-radius:10px;
+           background:var(--page);color:var(--text-primary);padding:11px 12px;font-size:13px;
+           font-family:ui-monospace,SFMono-Regular,Menlo,monospace;resize:vertical}
+  .hint{font-size:12.5px;color:var(--muted);margin-top:10px;line-height:1.55}
+  .actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .err{color:var(--down);font-size:12.5px;margin-top:8px;min-height:16px}
+  .disclaim{margin-top:12px;font-size:12.5px;color:var(--muted);line-height:1.6}
+  input[type=text].wide{width:100%;font-family:ui-monospace,monospace;font-size:12.5px;padding:9px 11px;
+        border-radius:10px;border:1px solid var(--border);background:var(--page);color:var(--text-primary);margin-top:10px}
+
+  footer{margin-top:18px;font-size:12px;color:var(--muted);line-height:1.6}
+  footer a{color:var(--series-1)}
+  .hidden{display:none!important}
+
+  @media (max-width:760px){ .top{grid-template-columns:1fr} .hero .val{font-size:42px} }
+  @media (max-width:520px){ .conv{grid-template-columns:1fr} .swap{justify-self:start} }
+  @media (max-width:420px){
+    .tiles{grid-template-columns:1fr 1fr} .tile .num{font-size:21px}
+    .tabs{gap:13px} .tabs button{font-size:13.5px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="head">
+    <div>
+      <h1 id="title">Курсы валют</h1>
+      <p class="sub" id="pairName">—</p>
+    </div>
+    <div class="headbtns">
+      <button class="iconbtn" id="refreshBtn" type="button" aria-label="Обновить">↻</button>
+      <button class="iconbtn" id="themeBtn" type="button" aria-label="Сменить тему">☾</button>
+    </div>
+  </div>
+
+  <div class="ctl">
+    <select id="pairSel" aria-label="Валютная пара"></select>
+    <div class="seg" id="srcSeg" role="group" aria-label="Источник"></div>
+  </div>
+
+  <div class="tabs" role="tablist" id="viewTabs">
+    <button type="button" role="tab" data-view="dyn" aria-selected="true">Динамика курса</button>
+    <button type="button" role="tab" data-view="fc" aria-selected="false">Прогноз курса</button>
+    <button type="button" role="tab" data-view="cross" aria-selected="false">Кросс-курс</button>
+  </div>
+
+  <div class="status" id="status"><span class="dot"></span><span id="statusTxt">Загрузка…</span></div>
+
+  <!-- ===== Динамика курса ===== -->
+  <section id="view-dyn">
+    <div class="ctl">
+      <div class="seg small" id="perSeg" role="group" aria-label="Период"></div>
+      <div class="spacer"></div>
+      <button class="ghost" id="csvBtn" type="button">Скачать CSV</button>
+    </div>
+
+    <div class="top">
+      <div class="card hero">
+        <div class="lbl">Курс на <span id="heroDate">—</span></div>
+        <div class="val"><span id="heroVal">—</span><span class="cur" id="heroCur"></span></div>
+        <div class="delta" id="heroDelta">—</div>
+        <div class="when" id="heroWhen">к предыдущему значению</div>
+      </div>
+      <div class="tiles">
+        <div class="tile"><div class="lbl">MAX</div><div class="num" id="tMax">—</div><div class="sub2" id="tMaxD">—</div></div>
+        <div class="tile"><div class="lbl">MIN</div><div class="num" id="tMin">—</div><div class="sub2" id="tMinD">—</div></div>
+        <div class="tile"><div class="lbl">AVG</div><div class="num" id="tAvg">—</div><div class="sub2">среднее за период</div></div>
+        <div class="tile"><div class="lbl">CHG</div><div class="num" id="tChg">—</div><div class="sub2" id="tChgD">за период</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h2 id="lineTitle">Курс</h2><span class="note" id="rangeNote">—</span></div>
+      <div id="dynEmpty" class="empty hidden"></div>
+      <div class="chart" id="lineWrap">
+        <svg id="lineSvg" role="img" tabindex="0" aria-label="График курса"></svg>
+        <div class="tip" id="lineTip" role="status" aria-live="polite"></div>
+      </div>
+    </div>
+
+    <div class="card" id="barCard">
+      <div class="card-h"><h2>Изменение к предыдущему значению</h2>
+        <span class="note">рост — синий, снижение — красный</span></div>
+      <div class="chart" id="barWrap">
+        <svg id="barSvg" role="img" tabindex="0" aria-label="График изменения курса"></svg>
+        <div class="tip" id="barTip" role="status" aria-live="polite"></div>
+      </div>
+    </div>
+
+    <div class="card" id="tblCard">
+      <div class="card-h"><h2>Таблица значений</h2><span class="note" id="tblNote">—</span></div>
+      <div class="tbl-scroll">
+        <table>
+          <thead><tr><th>Дата</th><th id="thRate">Курс</th><th>Изм.</th><th>Изм., %</th></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <details id="manualBox">
+      <summary>Свои данные (офлайн-режим)</summary>
+      <textarea id="dataIn" spellcheck="false" aria-label="Данные курса"></textarea>
+      <div class="hint">Одна строка — одно наблюдение: <b>дата курс [изменение]</b>. Дата в виде
+        <code>ДД.ММ</code> или <code>ГГГГ-ММ-ДД</code>. Например: <code>12.07 90.5045 +0.9595</code>.
+        Применённые данные заменяют собой источник, пока вы не нажмёте «Вернуть источник».</div>
+      <div class="actions">
+        <button class="ghost" id="applyBtn" type="button">Применить</button>
+        <button class="ghost" id="resetBtn" type="button">Вернуть источник</button>
+      </div>
+      <div class="err" id="err"></div>
+    </details>
+  </section>
+
+  <!-- ===== Прогноз курса ===== -->
+  <section id="view-fc" class="hidden">
+    <div class="ctl">
+      <div class="seg small" id="hzSeg" role="group" aria-label="Горизонт">
+        <button type="button" data-h="7" aria-pressed="false">7 дней</button>
+        <button type="button" data-h="30" aria-pressed="true">30 дней</button>
+        <button type="button" data-h="90" aria-pressed="false">90 дней</button>
+      </div>
+    </div>
+
+    <div class="top">
+      <div class="card hero">
+        <div class="lbl">Расчёт на <span id="fcDate">—</span></div>
+        <div class="val"><span id="fcVal">—</span><span class="cur" id="fcCur"></span></div>
+        <div class="delta" id="fcDelta">—</div>
+        <div class="when">к текущему курсу</div>
+      </div>
+      <div class="tiles">
+        <div class="tile"><div class="lbl">Диапазон 80%</div><div class="num" id="fcBand">—</div><div class="sub2">нижняя — верхняя граница</div></div>
+        <div class="tile"><div class="lbl">Тренд</div><div class="num" id="fcTrend">—</div><div class="sub2">в среднем за месяц</div></div>
+        <div class="tile"><div class="lbl">Волатильность</div><div class="num" id="fcVol">—</div><div class="sub2">ст. отклонение дн. изм.</div></div>
+        <div class="tile"><div class="lbl">Точек в расчёте</div><div class="num" id="fcN">—</div><div class="sub2" id="fcBase">история</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h2 id="fcTitle">История и расчётная траектория</h2>
+        <span class="note">пунктир — расчёт, заливка — диапазон 80%</span></div>
+      <div id="fcEmpty" class="empty hidden"></div>
+      <div class="chart" id="fcWrap">
+        <svg id="fcSvg" role="img" tabindex="0" aria-label="График расчётной траектории курса"></svg>
+        <div class="tip" id="fcTip" role="status" aria-live="polite"></div>
+      </div>
+      <p class="disclaim"><b>Это не прогноз аналитиков и не рекомендация.</b> Траектория — арифметика
+        по уже загруженной истории: линейный тренд логарифма курса плюс диапазон по волатильности
+        дневных изменений. Модель не знает ни решений ЦБ, ни цен на нефть, ни новостей, поэтому на
+        длинном горизонте расходится с реальностью. Используйте как оценку инерции, а не как ориентир для сделок.</p>
+    </div>
+  </section>
+
+  <!-- ===== Кросс-курс ===== -->
+  <section id="view-cross" class="hidden">
+    <div class="card">
+      <div class="card-h"><h2>Конвертер</h2><span class="note" id="crossNote">—</span></div>
+      <div class="conv">
+        <div class="fld">
+          <label for="cAmt">Сумма</label>
+          <input id="cAmt" type="text" inputmode="decimal" value="1000">
+          <select id="cFrom" aria-label="Из валюты"></select>
+        </div>
+        <button class="ghost swap" id="cSwap" type="button" aria-label="Поменять местами">⇄</button>
+        <div class="fld">
+          <label for="cTo">Получится</label>
+          <input id="cRes" type="text" readonly aria-label="Результат">
+          <select id="cTo" aria-label="В валюту"></select>
+        </div>
+      </div>
+      <div class="conv-out">
+        <div class="big" id="cBig">—</div>
+        <div class="rate" id="cRate">—</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h2>Матрица кросс-курсов</h2>
+        <span class="note">сколько единиц валюты столбца за 1 единицу валюты строки</span></div>
+      <div id="crossEmpty" class="empty hidden"></div>
+      <div class="tbl-scroll">
+        <table><thead id="mHead"></thead><tbody id="mBody"></tbody></table>
+      </div>
+    </div>
+  </section>
+
+  <footer id="foot"></footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ============ справочники ============ */
+  var CUR = {
+    RUB:{n:"Российский рубль", s:"₽"}, USD:{n:"Доллар США", s:"$"},
+    EUR:{n:"Евро", s:"€"}, CNY:{n:"Китайский юань", s:"¥"},
+    GBP:{n:"Фунт стерлингов", s:"£"}, JPY:{n:"Японская иена", s:"¥"},
+    CHF:{n:"Швейцарский франк", s:"Fr"}, TRY:{n:"Турецкая лира", s:"₺"},
+    KZT:{n:"Казахстанский тенге", s:"₸"}, BYN:{n:"Белорусский рубль", s:"Br"},
+    AED:{n:"Дирхам ОАЭ", s:"AED"}, HKD:{n:"Гонконгский доллар", s:"HK$"},
+    INR:{n:"Индийская рупия", s:"₹"}, KRW:{n:"Южнокорейская вона", s:"₩"},
+    AMD:{n:"Армянский драм", s:"֏"}, GEL:{n:"Грузинский лари", s:"₾"},
+    UZS:{n:"Узбекский сум", s:"UZS"}, AZN:{n:"Азербайджанский манат", s:"₼"}
+  };
+
+  var PAIRS = [
+    {b:"USD", q:"RUB", moex:"USDRUB_TOM", ms:1},
+    {b:"EUR", q:"RUB", moex:"EURRUB_TOM", ms:1},
+    {b:"CNY", q:"RUB", moex:"CNYRUB_TOM", ms:1},
+    {b:"GBP", q:"RUB", moex:"GBPRUB_TOM", ms:1},
+    {b:"JPY", q:"RUB", moex:"JPYRUB_TOM", ms:100},
+    {b:"CHF", q:"RUB", moex:"CHFRUB_TOM", ms:1},
+    {b:"TRY", q:"RUB", moex:"TRYRUB_TOM", ms:1},
+    {b:"KZT", q:"RUB", moex:"KZTRUB_TOM", ms:100},
+    {b:"BYN", q:"RUB", moex:"BYNRUB_TOM", ms:1},
+    {b:"AED", q:"RUB", moex:"AEDRUB_TOM", ms:1},
+    {b:"HKD", q:"RUB", moex:"HKDRUB_TOM", ms:1},
+    {b:"INR", q:"RUB", moex:null, ms:1},
+    {b:"KRW", q:"RUB", moex:null, ms:1},
+    {b:"AMD", q:"RUB", moex:null, ms:1},
+    {b:"GEL", q:"RUB", moex:null, ms:1},
+    {b:"AZN", q:"RUB", moex:null, ms:1},
+    {b:"EUR", q:"USD", moex:null, ms:1},
+    {b:"GBP", q:"USD", moex:null, ms:1},
+    {b:"USD", q:"JPY", moex:null, ms:1},
+    {b:"USD", q:"CNY", moex:null, ms:1}
+  ];
+  PAIRS.forEach(function(p){ p.id = p.b + p.q; p.title = p.b + "/" + p.q; });
+
+  var SOURCES = [
+    {id:"cbr",  name:"ЦБ",     full:"ЦБ РФ (официальные курсы)"},
+    {id:"moex", name:"ММВБ",   full:"Мосбиржа, валютный рынок CETS"},
+    {id:"fx",   name:"Форекс", full:"Форекс (ECB / exchangerate-api)"},
+    {id:"rbc",  name:"РБК",    full:"РБК"}
+  ];
+
+  var PERIODS = [
+    {id:"today", name:"Сегодня",     days:4,    pts:4},
+    {id:"3d",    name:"3 дня",       days:6,    pts:6},
+    {id:"week",  name:"Неделя",      days:9,    pts:8},
+    {id:"month", name:"Месяц",       days:31,   pts:16},
+    {id:"quart", name:"Квартал",     days:93,   pts:20},
+    {id:"year",  name:"Год",         days:366,  pts:26},
+    {id:"all",   name:"За всё время",days:1830, pts:30}
+  ];
+
+  var MATRIX = ["RUB","USD","EUR","CNY","GBP","JPY","CHF","TRY"];
+
+  /* демо-ряд из бумажной таблицы «Динамика курса» (ЦБ, USD/RUB) */
+  var DEMO = [
+    ["2023-05-16",79.1004],["2023-05-23",79.9379],["2023-05-30",80.0555],
+    ["2023-06-06",81.3294],["2023-06-14",83.6405],["2023-06-21",84.2336],
+    ["2023-06-28",85.0504],["2023-07-05",89.5450],["2023-07-12",90.5045]
+  ];
+
+  /* ============ состояние ============ */
+  var state = {
+    pair: PAIRS[0], source: "cbr", view: "dyn",
+    period: PERIODS[3], horizon: 30,
+    rows: [], latest: null, table: null,
+    manual: null, demoNote: null, loading: false, status: {kind:"", text:""},
+    reqId: 0
+  };
+  var settings = { proxy: "" };
+  try { settings.proxy = localStorage.getItem("rates-proxy") || ""; } catch(e){}
+
+  /* ============ утилиты ============ */
+  function $(id){ return document.getElementById(id); }
+  function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+  function pad(n){ return n < 10 ? "0" + n : "" + n; }
+  function iso(d){ return d.getUTCFullYear() + "-" + pad(d.getUTCMonth()+1) + "-" + pad(d.getUTCDate()); }
+  function fromIso(s){ var p = s.split("-"); return new Date(Date.UTC(+p[0], +p[1]-1, +p[2])); }
+  function dayShift(d, n){ var x = new Date(d.getTime()); x.setUTCDate(x.getUTCDate() + n); return x; }
+  function daysBetween(a, b){ return Math.round((fromIso(b) - fromIso(a)) / 86400000); }
+
+  function decimals(v){
+    var a = Math.abs(v);
+    if(a >= 1000) return 2;
+    if(a >= 100) return 3;
+    if(a >= 1) return 4;
+    if(a >= 0.01) return 5;
+    return 6;
+  }
+  var DEC = null;  /* знаки после запятой, общие для текущей пары */
+  function digits(v, d){ return d !== undefined ? d : (DEC !== null ? DEC : decimals(v)); }
+  function fmt(v, d){ return v.toFixed(digits(v, d)); }
+  function fmtSigned(v, d){ return (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(digits(v, d)); }
+  function pct(v){ return (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(2) + "%"; }
+  function money(v){
+    var d = v >= 1000 ? 2 : decimals(v);
+    return v.toLocaleString("ru-RU", {minimumFractionDigits:d, maximumFractionDigits:d});
+  }
+  function shortDate(isoStr, withYear){
+    var p = isoStr.split("-");
+    return p[2] + "." + p[1] + (withYear ? "." + p[0].slice(2) : "");
+  }
+
+  /* ============ сеть ============ */
+  function withProxy(u){
+    var p = settings.proxy.trim();
+    if(!p) return u;
+    return p.indexOf("{url}") >= 0 ? p.replace("{url}", encodeURIComponent(u)) : p + u;
+  }
+  function getJSON(u, ms){
+    var ctl = ("AbortController" in window) ? new AbortController() : null;
+    var t = setTimeout(function(){ if(ctl) ctl.abort(); }, ms || 12000);
+    return fetch(withProxy(u), ctl ? {signal:ctl.signal, cache:"no-store"} : {cache:"no-store"})
+      .then(function(r){
+        clearTimeout(t);
+        if(!r.ok) { var e = new Error("HTTP " + r.status); e.status = r.status; throw e; }
+        return r.text();
+      })
+      .then(function(txt){
+        try { return JSON.parse(txt); }
+        catch(e){ throw new Error("источник вернул не JSON"); }
+      })
+      .catch(function(e){
+        clearTimeout(t);
+        if(e && e.name === "AbortError") throw new Error("превышено время ожидания");
+        throw e;
+      });
+  }
+  function pool(items, limit, fn){
+    var i = 0, out = new Array(items.length), active = 0;
+    return new Promise(function(res){
+      function next(){
+        if(i >= items.length && active === 0) return res(out);
+        while(active < limit && i < items.length){
+          (function(k){
+            active++; i++;
+            Promise.resolve(fn(items[k], k)).then(function(v){ out[k] = v; }, function(){ out[k] = null; })
+              .then(function(){ active--; next(); });
+          })(i);
+        }
+      }
+      next();
+    });
+  }
+  var memCache = {};
+  function cacheGet(k){
+    if(memCache[k] !== undefined) return memCache[k];
+    try { var s = localStorage.getItem("rc:" + k); if(s) { memCache[k] = JSON.parse(s); return memCache[k]; } } catch(e){}
+    return undefined;
+  }
+  function cacheSet(k, v){
+    memCache[k] = v;
+    try { localStorage.setItem("rc:" + k, JSON.stringify(v)); } catch(e){}
+  }
+
+  /* ============ источник: ЦБ РФ ============ */
+  function cbrTable(json){
+    var t = {RUB:1};
+    var V = json && json.Valute;
+    if(!V) throw new Error("неожиданный формат ответа ЦБ");
+    for(var k in V){ if(V[k] && V[k].Value && V[k].Nominal) t[k] = V[k].Value / V[k].Nominal; }
+    return t;
+  }
+  function cbrLatest(){
+    return getJSON("https://www.cbr-xml-daily.ru/daily_json.js").then(function(j){
+      var prev = {RUB:1}, V = j.Valute;
+      for(var k in V){ if(V[k] && V[k].Previous && V[k].Nominal) prev[k] = V[k].Previous / V[k].Nominal; }
+      return {date: (j.Date || "").slice(0,10), table: cbrTable(j), prev: prev};
+    });
+  }
+  function cbrOn(dateIso){
+    var key = "cbr:" + dateIso;
+    var c = cacheGet(key);
+    if(c !== undefined) return Promise.resolve(c);
+    var p = dateIso.split("-");
+    return getJSON("https://www.cbr-xml-daily.ru/archive/" + p[0] + "/" + p[1] + "/" + p[2] + "/daily_json.js", 15000)
+      .then(function(j){ var t = cbrTable(j); cacheSet(key, t); return t; })
+      .catch(function(e){ if(e && e.status === 404){ cacheSet(key, null); return null; } throw e; });
+  }
+  function rateFrom(table, pair){
+    if(!table) return null;
+    var b = pair.b === "RUB" ? 1 : table[pair.b];
+    var q = pair.q === "RUB" ? 1 : table[pair.q];
+    if(!b || !q) return null;
+    return b / q;
+  }
+  function sampleDates(days, pts){
+    var today = new Date(), out = [];
+    var step = Math.max(1, Math.round(days / pts));
+    for(var i = 0; i < pts; i++){
+      var d = dayShift(today, -i * step);
+      out.push(iso(d));
+    }
+    return out.reverse();
+  }
+  function cbrSeries(pair, period){
+    var dates = sampleDates(period.days, period.pts);
+    return pool(dates, 4, function(d){ return cbrOn(d); }).then(function(tables){
+      var pts = [];
+      tables.forEach(function(t, i){
+        var v = rateFrom(t, pair);
+        if(v) pts.push({d: dates[i], v: v});
+      });
+      return pts;
+    });
+  }
+  var providerCBR = {
+    label: "ЦБ РФ",
+    load: function(pair, period){
+      return Promise.all([cbrLatest(), cbrSeries(pair, period)]).then(function(r){
+        var L = r[0], pts = r[1];
+        var last = rateFrom(L.table, pair), prev = rateFrom(L.prev, pair);
+        if(!last) throw new Error("ЦБ не публикует курс " + pair.title);
+        if(!pts.length || pts[pts.length-1].d < L.date) pts.push({d: L.date, v: last});
+        else pts[pts.length-1] = {d: L.date, v: last};
+        return {points: pts, table: L.table, date: L.date, prev: prev,
+                note: pair.q === "RUB" || pair.b === "RUB" ? "" : "кросс-курс по официальным курсам ЦБ"};
+      });
+    }
+  };
+
+  /* ============ источник: Мосбиржа (ISS) ============ */
+  function issCols(block){
+    var idx = {}, cols = block.columns || [];
+    cols.forEach(function(c, i){ idx[c] = i; });
+    return {idx: idx, rows: block.data || []};
+  }
+  function moexLast(pair){
+    var u = "https://iss.moex.com/iss/engines/currency/markets/selt/boards/CETS/securities/" +
+            pair.moex + ".json?iss.meta=off&iss.only=marketdata,securities";
+    return getJSON(u).then(function(j){
+      var md = issCols(j.marketdata || {}), sec = issCols(j.securities || {});
+      var mrow = md.rows[0] || [], srow = sec.rows[0] || [];
+      function mv(n){ return md.idx[n] !== undefined ? mrow[md.idx[n]] : null; }
+      function sv(n){ return sec.idx[n] !== undefined ? srow[sec.idx[n]] : null; }
+      var last = mv("LAST") || mv("MARKETPRICE") || mv("LCURRENTPRICE") || sv("PREVPRICE");
+      var prev = sv("PREVPRICE");
+      var time = mv("SYSTIME") || mv("UPDATETIME") || null;
+      if(!last) throw new Error("биржа не отдала цену по " + pair.moex);
+      return {v: last / pair.ms, prev: prev ? prev / pair.ms : null, time: time};
+    });
+  }
+  function moexHistory(pair, period){
+    var till = iso(new Date()), from = iso(dayShift(new Date(), -period.days));
+    var u = "https://iss.moex.com/iss/history/engines/currency/markets/selt/boards/CETS/securities/" +
+            pair.moex + ".json?iss.meta=off&iss.only=history&history.columns=TRADEDATE,CLOSE,WAPRICE" +
+            "&from=" + from + "&till=" + till + "&limit=100";
+    function page(start){
+      return getJSON(u + "&start=" + start).then(function(j){
+        var h = issCols(j.history || {});
+        return h.rows.map(function(r){
+          var v = r[h.idx.CLOSE] || r[h.idx.WAPRICE];
+          return v ? {d: r[h.idx.TRADEDATE], v: v / pair.ms} : null;
+        }).filter(Boolean);
+      });
+    }
+    return page(0).then(function(a){
+      if(a.length < 100) return a;
+      return page(100).then(function(b){
+        if(b.length < 100) return a.concat(b);
+        return page(200).then(function(c){ return a.concat(b, c); });
+      });
+    });
+  }
+  function downsample(pts, target){
+    if(pts.length <= target) return pts;
+    var step = (pts.length - 1) / (target - 1), out = [];
+    for(var i = 0; i < target - 1; i++) out.push(pts[Math.round(i * step)]);
+    out.push(pts[pts.length - 1]);
+    return out;
+  }
+  var providerMOEX = {
+    label: "Мосбиржа (CETS)",
+    load: function(pair, period){
+      if(!pair.moex) {
+        var e = new Error("На Мосбирже нет инструмента для пары " + pair.title + ".");
+        e.soft = true; throw e;
+      }
+      return Promise.all([moexLast(pair), moexHistory(pair, period)]).then(function(r){
+        var L = r[0], pts = downsample(r[1], period.pts);
+        var today = iso(new Date());
+        if(!pts.length || pts[pts.length-1].d !== today) pts.push({d: today, v: L.v});
+        else pts[pts.length-1] = {d: today, v: L.v};
+        return {points: pts, table: null, date: today, prev: L.prev,
+                note: pair.ms !== 1 ? "цена инструмента за " + pair.ms + " ед. приведена к 1 ед." : ""};
+      });
+    }
+  };
+
+  /* ============ источник: Форекс ============ */
+  var providerFX = {
+    label: "Форекс",
+    load: function(pair, period){
+      var latest = getJSON("https://open.er-api.com/v6/latest/" + pair.b).then(function(j){
+        if(!j || !j.rates || !j.rates[pair.q]) throw new Error("нет котировки " + pair.title);
+        var d = j.time_last_update_utc ? new Date(j.time_last_update_utc) : new Date();
+        return {v: j.rates[pair.q], date: iso(d), raw: j.rates};
+      });
+      var till = iso(new Date()), from = iso(dayShift(new Date(), -period.days));
+      var hist = getJSON("https://api.frankfurter.app/" + from + ".." + till +
+                         "?from=" + pair.b + "&to=" + pair.q)
+        .then(function(j){
+          var out = [];
+          if(j && j.rates) for(var d in j.rates){ if(j.rates[d][pair.q]) out.push({d:d, v:j.rates[d][pair.q]}); }
+          out.sort(function(a,b){ return a.d < b.d ? -1 : 1; });
+          return out;
+        })
+        .catch(function(){ return []; });
+      return Promise.all([latest, hist]).then(function(r){
+        var L = r[0], pts = downsample(r[1], period.pts);
+        if(!pts.length || pts[pts.length-1].d !== L.date) pts.push({d: L.date, v: L.v});
+        var prev = pts.length > 1 ? pts[pts.length-2].v : null;
+        // таблица «сколько единиц базовой валюты за 1 ед. валюты» — как у ЦБ
+        var norm = {};
+        for(var c in L.raw) norm[c] = 1 / L.raw[c];
+        norm[pair.b] = 1;
+        return {points: pts, table: norm, date: L.date, prev: prev,
+                note: r[1].length ? "" : "история у источника доступна не по всем парам — показан текущий курс"};
+      });
+    }
+  };
+
+  /* ============ источник: РБК ============ */
+  var providerRBC = {
+    label: "РБК",
+    load: function(){
+      var e = new Error("У РБК нет публичного API курсов: сайт показывает котировки ЦБ, Мосбиржи и Форекса, " +
+                        "а они уже доступны на соседних кнопках источника.");
+      e.soft = true; e.rbc = true;
+      throw e;
+    }
+  };
+
+  var PROVIDERS = {cbr: providerCBR, moex: providerMOEX, fx: providerFX, rbc: providerRBC};
+
+  /* ============ шкалы и графики ============ */
+  function niceScale(lo, hi, want){
+    if(hi === lo){ hi = lo + Math.abs(lo || 1) * 0.01; lo = lo - Math.abs(lo || 1) * 0.01; }
+    var pad = (hi - lo) * 0.12; lo -= pad; hi += pad;
+    var raw = (hi - lo) / want;
+    var mag = Math.pow(10, Math.floor(Math.log(raw)/Math.LN10));
+    var norm = raw / mag, step;
+    if(norm <= 1) step = 1; else if(norm <= 2) step = 2;
+    else if(norm <= 2.5) step = 2.5; else if(norm <= 5) step = 5; else step = 10;
+    step *= mag;
+    var s = Math.floor(lo/step)*step, e = Math.ceil(hi/step)*step, ticks = [];
+    for(var v = s; v <= e + step/1000; v += step) ticks.push(Math.round(v*1e8)/1e8);
+    return {lo:s, hi:e, ticks:ticks, step:step};
+  }
+  function tickFmt(step){
+    if(step >= 100) return 0;
+    if(step >= 10) return 1;
+    if(step >= 1) return 2;
+    if(step >= 0.1) return 3;
+    if(step >= 0.01) return 4;
+    return 5;
+  }
+
+  var geom = {};
+
+  function drawLine(cfg){
+    var host = $(cfg.wrap), svg = $(cfg.svg);
+    if(!host || !svg) return;
+    var W = Math.max(280, host.clientWidth || 640);
+    var small = W < 560;
+    var H = cfg.h || (small ? 250 : 330);
+    var m = {t:20, r: small ? 44 : 62, b:30, l: small ? 46 : 56};
+    var iw = W - m.l - m.r, ih = H - m.t - m.b;
+
+    var hist = cfg.hist, proj = cfg.proj || [];
+    var all = hist.concat(proj);
+    if(all.length < 1){ svg.innerHTML = ""; return; }
+    var t0 = hist[0].d;
+    var span = Math.max(1, daysBetween(t0, all[all.length-1].d));
+    var X = function(p){ return m.l + iw * (daysBetween(t0, p.d) / span); };
+
+    var vals = [];
+    hist.forEach(function(p){ vals.push(p.v); });
+    proj.forEach(function(p){ vals.push(p.v); if(p.lo) vals.push(p.lo); if(p.hi) vals.push(p.hi); });
+    var sc = niceScale(Math.min.apply(null, vals), Math.max.apply(null, vals), small ? 4 : 5);
+    var dec = tickFmt(sc.step);
+    var Y = function(v){ return m.t + ih * (1 - (v - sc.lo)/(sc.hi - sc.lo)); };
+
+    var withYear = daysBetween(hist[0].d, all[all.length-1].d) > 300;
+    var maxI = 0, minI = 0;
+    hist.forEach(function(p,i){ if(p.v > hist[maxI].v) maxI = i; if(p.v < hist[minI].v) minI = i; });
+
+    var s = '<svg xmlns="http://www.w3.org/2000/svg" id="' + cfg.svg + '" role="img" tabindex="0" aria-label="' +
+            esc(cfg.aria || "График") + '" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">';
+    sc.ticks.forEach(function(tv){
+      var y = Y(tv);
+      if(y < m.t - 1 || y > m.t + ih + 1) return;
+      s += '<line x1="' + m.l + '" y1="' + y + '" x2="' + (m.l+iw) + '" y2="' + y +
+           '" stroke="var(--grid)" stroke-width="1"/>' +
+           '<text x="' + (m.l-9) + '" y="' + (y+4) + '" text-anchor="end" font-size="11" fill="var(--muted)"' +
+           ' style="font-variant-numeric:tabular-nums">' + tv.toFixed(dec) + '</text>';
+    });
+
+    // подписи по оси X
+    var labelPts = hist.concat(proj.length ? [proj[proj.length-1]] : []);
+    var maxLab = small ? 4 : 7;
+    var stepI = Math.max(1, Math.ceil(labelPts.length / maxLab));
+    labelPts.forEach(function(p, i){
+      var last = (i === labelPts.length - 1);
+      if(i % stepI !== 0 && !last) return;
+      if(!last && (labelPts.length - 1 - i) < stepI) return;
+      s += '<text x="' + X(p) + '" y="' + (m.t+ih+19) + '" text-anchor="middle" font-size="11" fill="var(--muted)">' +
+           esc(shortDate(p.d, withYear)) + '</text>';
+    });
+
+    // диапазон прогноза
+    if(proj.length && proj[0].lo !== undefined){
+      var up = "", dn = "";
+      proj.forEach(function(p, i){ up += (i ? "L" : "M") + X(p).toFixed(2) + " " + Y(p.hi).toFixed(2) + " "; });
+      for(var k = proj.length - 1; k >= 0; k--) dn += "L" + X(proj[k]).toFixed(2) + " " + Y(proj[k].lo).toFixed(2) + " ";
+      s += '<path d="' + up + dn + 'Z" fill="var(--series-1)" fill-opacity="0.10"/>';
+    }
+
+    // история: заливка + линия
+    var dPath = "";
+    hist.forEach(function(p,i){ dPath += (i ? "L" : "M") + X(p).toFixed(2) + " " + Y(p.v).toFixed(2) + " "; });
+    if(!proj.length){
+      s += '<path d="' + dPath + 'L' + X(hist[hist.length-1]).toFixed(2) + ' ' + (m.t+ih) +
+           ' L' + X(hist[0]).toFixed(2) + ' ' + (m.t+ih) + ' Z" fill="var(--series-1)" fill-opacity="0.10"/>';
+    }
+    s += '<path d="' + dPath + '" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+
+    // прогнозная траектория
+    if(proj.length){
+      var pPath = "M" + X(hist[hist.length-1]).toFixed(2) + " " + Y(hist[hist.length-1].v).toFixed(2) + " ";
+      proj.forEach(function(p){ pPath += "L" + X(p).toFixed(2) + " " + Y(p.v).toFixed(2) + " "; });
+      s += '<path d="' + pPath + '" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-dasharray="5 4" stroke-linecap="round"/>';
+    }
+
+    s += '<line x1="' + m.l + '" y1="' + (m.t+ih) + '" x2="' + (m.l+iw) + '" y2="' + (m.t+ih) + '" stroke="var(--axis)" stroke-width="1"/>';
+
+    // точки истории
+    var showDots = hist.length <= 40;
+    if(showDots){
+      hist.forEach(function(p,i){
+        var last = (i === hist.length-1);
+        s += '<circle cx="' + X(p).toFixed(2) + '" cy="' + Y(p.v).toFixed(2) + '" r="' + (last ? 5 : 4) +
+             '" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>';
+      });
+    } else {
+      var lp = hist[hist.length-1];
+      s += '<circle cx="' + X(lp).toFixed(2) + '" cy="' + Y(lp.v).toFixed(2) + '" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>';
+    }
+    if(proj.length){
+      var pe = proj[proj.length-1];
+      s += '<circle cx="' + X(pe).toFixed(2) + '" cy="' + Y(pe.v).toFixed(2) + '" r="5" fill="var(--surface-1)" stroke="var(--series-1)" stroke-width="2"/>';
+    }
+
+    // прямые подписи
+    var endPt = proj.length ? proj[proj.length-1] : hist[hist.length-1];
+    var lx = small ? X(endPt) : X(endPt) + 10;
+    var ly = small ? Math.max(m.t + 10, Y(endPt.v) - 13) : Y(endPt.v) + 4;
+    s += '<text x="' + lx + '" y="' + ly + '" text-anchor="' + (small ? "end" : "start") +
+         '" font-size="12.5" font-weight="650" fill="var(--text-primary)" style="font-variant-numeric:tabular-nums">' +
+         fmt(endPt.v) + '</text>';
+    if(!proj.length && hist.length > 2){
+      [[maxI,"MAX",-12],[minI,"MIN",18]].forEach(function(q){
+        var i = q[0];
+        if(i === hist.length-1) return;
+        var anchor = i === 0 ? "start" : "middle";
+        s += '<text x="' + X(hist[i]) + '" y="' + (Y(hist[i].v)+q[2]) + '" text-anchor="' + anchor +
+             '" font-size="11" fill="var(--muted)" style="font-variant-numeric:tabular-nums">' +
+             q[1] + " " + fmt(hist[i].v) + '</text>';
+      });
+    }
+
+    s += '<line class="xh" x1="0" y1="' + m.t + '" x2="0" y2="' + (m.t+ih) + '" stroke="var(--axis)" stroke-width="1" opacity="0"/>';
+    s += '<circle class="xd" r="6" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2" opacity="0"/>';
+    s += '<rect class="overlay" x="' + m.l + '" y="' + m.t + '" width="' + iw + '" height="' + ih + '" fill="transparent"/>';
+    s += '</svg>';
+    svg.outerHTML = s;
+
+    geom[cfg.svg] = {X:X, Y:Y, hist:hist, proj:proj, all:all, wrap:cfg.wrap, tip:cfg.tip, cur:-1};
+    bindHover(cfg.svg);
+  }
+
+  function bindHover(svgId){
+    var g = geom[svgId];
+    var svg = $(svgId), tip = $(g.tip);
+    var ov = svg.querySelector(".overlay"), xh = svg.querySelector(".xh"), xd = svg.querySelector(".xd");
+    var series = g.hist.concat(g.proj);
+
+    function show(i){
+      var p = series[i];
+      if(!p) return;
+      g.cur = i;
+      var x = g.X(p), y = g.Y(p.v);
+      xh.setAttribute("x1", x); xh.setAttribute("x2", x); xh.setAttribute("opacity", "1");
+      xd.setAttribute("cx", x); xd.setAttribute("cy", y); xd.setAttribute("opacity", "1");
+      tip.textContent = "";
+      var d1 = document.createElement("div"); d1.className = "t-d";
+      d1.textContent = shortDate(p.d, true) + (p.fc ? " · расчёт" : "");
+      var d2 = document.createElement("div"); d2.className = "t-v"; d2.textContent = fmt(p.v);
+      tip.appendChild(d1); tip.appendChild(d2);
+      if(p.lo !== undefined){
+        var r0 = document.createElement("div"); r0.className = "t-row";
+        r0.textContent = fmt(p.lo) + " … " + fmt(p.hi);
+        tip.appendChild(r0);
+      } else if(p.chg !== undefined && p.chg !== null){
+        var row = document.createElement("div"); row.className = "t-row";
+        var k = document.createElement("span"); k.className = "key";
+        var tx = document.createElement("span");
+        tx.textContent = fmtSigned(p.chg) + (p.pct === null || p.pct === undefined ? "" : "  (" + pct(p.pct) + ")");
+        row.appendChild(k); row.appendChild(tx); tip.appendChild(row);
+      }
+      tip.style.opacity = "1";
+      var w = tip.offsetWidth || 130, hostW = $(g.wrap).clientWidth;
+      tip.style.left = Math.min(Math.max(x - w/2, 0), Math.max(0, hostW - w)) + "px";
+      tip.style.top = Math.max(0, y - tip.offsetHeight - 14) + "px";
+    }
+    function hide(){ g.cur = -1; xh.setAttribute("opacity","0"); xd.setAttribute("opacity","0"); tip.style.opacity = "0"; }
+    function nearest(clientX){
+      var box = svg.getBoundingClientRect(), px = clientX - box.left, best = 0, bd = Infinity;
+      series.forEach(function(p, i){ var d = Math.abs(g.X(p) - px); if(d < bd){ bd = d; best = i; } });
+      return best;
+    }
+    ov.addEventListener("pointermove", function(e){ show(nearest(e.clientX)); });
+    ov.addEventListener("pointerdown", function(e){ show(nearest(e.clientX)); });
+    ov.addEventListener("pointerleave", hide);
+    svg.addEventListener("blur", hide);
+    svg.addEventListener("keydown", function(e){
+      if(e.key === "ArrowRight"){ show(g.cur < 0 ? 0 : Math.min(series.length-1, g.cur+1)); e.preventDefault(); }
+      else if(e.key === "ArrowLeft"){ show(g.cur < 0 ? series.length-1 : Math.max(0, g.cur-1)); e.preventDefault(); }
+      else if(e.key === "Escape"){ hide(); }
+    });
+  }
+
+  function drawBars(rows){
+    var host = $("barWrap"), svg = $("barSvg");
+    var W = Math.max(280, host.clientWidth || 640);
+    var small = W < 560;
+    var H = small ? 180 : 210;
+    var m = {t:16, r: small ? 10 : 14, b:28, l: small ? 46 : 56};
+    var iw = W - m.l - m.r, ih = H - m.t - m.b;
+
+    var data = rows.filter(function(r){ return r.chg !== null && r.chg !== undefined; });
+    if(data.length < 1){ svg.outerHTML = '<svg id="barSvg" height="0"></svg>'; return; }
+    var cv = data.map(function(r){ return r.chg; });
+    var lo = Math.min.apply(null, cv), hi = Math.max.apply(null, cv);
+    var sc = niceScale(Math.min(0, lo), Math.max(0, hi), 3);
+    if(lo >= 0){ sc.lo = 0; sc.ticks = sc.ticks.filter(function(t){ return t >= 0; }); }
+    if(hi <= 0){ sc.hi = 0; sc.ticks = sc.ticks.filter(function(t){ return t <= 0; }); }
+    var dec = tickFmt(sc.step);
+    var n = data.length, band = iw / n, bw = Math.min(24, band * 0.56);
+    var Xc = function(i){ return m.l + band * (i + 0.5); };
+    var Y = function(v){ return m.t + ih * (1 - (v - sc.lo)/(sc.hi - sc.lo)); };
+    var zero = Y(0);
+    var withYear = daysBetween(data[0].d, data[n-1].d) > 300;
+
+    var s = '<svg xmlns="http://www.w3.org/2000/svg" id="barSvg" role="img" tabindex="0" aria-label="График изменения курса" width="' +
+            W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">';
+    sc.ticks.forEach(function(tv){
+      var y = Y(tv);
+      if(y < m.t - 1 || y > m.t + ih + 1) return;
+      s += '<line x1="' + m.l + '" y1="' + y + '" x2="' + (m.l+iw) + '" y2="' + y + '" stroke="var(--grid)" stroke-width="1"/>' +
+           '<text x="' + (m.l-9) + '" y="' + (y+4) + '" text-anchor="end" font-size="11" fill="var(--muted)"' +
+           ' style="font-variant-numeric:tabular-nums">' + tv.toFixed(dec) + '</text>';
+    });
+    data.forEach(function(r,i){
+      var up = r.chg >= 0, c = up ? "var(--series-1)" : "var(--series-neg)";
+      var y0 = Y(r.chg), h = Math.abs(zero - y0), x = Xc(i) - bw/2;
+      var rad = Math.min(4, bw/2, h), d;
+      if(up) d = "M" + x + " " + zero + " L" + x + " " + (y0+rad) + " Q" + x + " " + y0 + " " + (x+rad) + " " + y0 +
+                  " L" + (x+bw-rad) + " " + y0 + " Q" + (x+bw) + " " + y0 + " " + (x+bw) + " " + (y0+rad) + " L" + (x+bw) + " " + zero + " Z";
+      else   d = "M" + x + " " + zero + " L" + x + " " + (y0-rad) + " Q" + x + " " + y0 + " " + (x+rad) + " " + y0 +
+                  " L" + (x+bw-rad) + " " + y0 + " Q" + (x+bw) + " " + y0 + " " + (x+bw) + " " + (y0-rad) + " L" + (x+bw) + " " + zero + " Z";
+      s += '<path d="' + d + '" fill="' + c + '"/>';
+    });
+    s += '<line x1="' + m.l + '" y1="' + zero + '" x2="' + (m.l+iw) + '" y2="' + zero + '" stroke="var(--axis)" stroke-width="1"/>';
+    var maxLab = small ? 4 : 7, stepI = Math.max(1, Math.ceil(n / maxLab));
+    data.forEach(function(r,i){
+      var last = (i === n-1);
+      if(i % stepI !== 0 && !last) return;
+      if(!last && (n-1-i) < stepI) return;
+      s += '<text x="' + Xc(i) + '" y="' + (m.t+ih+19) + '" text-anchor="middle" font-size="11" fill="var(--muted)">' +
+           esc(shortDate(r.d, withYear)) + '</text>';
+    });
+    data.forEach(function(r,i){
+      s += '<rect class="hit" data-i="' + i + '" x="' + (Xc(i)-band/2) + '" y="' + m.t + '" width="' + band + '" height="' + ih + '" fill="transparent"/>';
+    });
+    s += '</svg>';
+    svg.outerHTML = s;
+
+    var nsvg = $("barSvg"), tip = $("barTip"), cur = -1;
+    function show(i){
+      var r = data[i]; if(!r) return;
+      cur = i;
+      tip.textContent = "";
+      var d1 = document.createElement("div"); d1.className = "t-d"; d1.textContent = shortDate(r.d, true);
+      var d2 = document.createElement("div"); d2.className = "t-v " + (r.chg >= 0 ? "up" : "down");
+      d2.textContent = fmtSigned(r.chg);
+      var row = document.createElement("div"); row.className = "t-row";
+      row.textContent = "курс " + fmt(r.v) + (r.pct === null ? "" : "  ·  " + pct(r.pct));
+      tip.appendChild(d1); tip.appendChild(d2); tip.appendChild(row);
+      tip.style.opacity = "1";
+      var w = tip.offsetWidth || 130, hostW = $("barWrap").clientWidth, x = Xc(i);
+      tip.style.left = Math.min(Math.max(x - w/2, 0), Math.max(0, hostW - w)) + "px";
+      tip.style.top = Math.max(0, Math.min(Y(r.chg), zero) - tip.offsetHeight - 10) + "px";
+    }
+    function hide(){ cur = -1; tip.style.opacity = "0"; }
+    Array.prototype.forEach.call(nsvg.querySelectorAll(".hit"), function(h){
+      h.addEventListener("pointermove", function(){ show(parseInt(h.getAttribute("data-i"),10)); });
+      h.addEventListener("pointerdown", function(){ show(parseInt(h.getAttribute("data-i"),10)); });
+    });
+    nsvg.addEventListener("pointerleave", hide);
+    nsvg.addEventListener("blur", hide);
+    nsvg.addEventListener("keydown", function(e){
+      if(e.key === "ArrowRight"){ show(cur < 0 ? 0 : Math.min(data.length-1, cur+1)); e.preventDefault(); }
+      else if(e.key === "ArrowLeft"){ show(cur < 0 ? data.length-1 : Math.max(0, cur-1)); e.preventDefault(); }
+      else if(e.key === "Escape"){ hide(); }
+    });
+  }
+
+  /* ============ подготовка рядов ============ */
+  function decorate(points){
+    var rows = points.slice().sort(function(a,b){ return a.d < b.d ? -1 : 1; });
+    for(var i = 0; i < rows.length; i++){
+      rows[i] = {d: rows[i].d, v: rows[i].v, chg: null, pct: null};
+      if(i > 0){
+        rows[i].chg = rows[i].v - rows[i-1].v;
+        rows[i].pct = rows[i-1].v ? rows[i].chg / rows[i-1].v * 100 : null;
+      }
+    }
+    return rows;
+  }
+
+  function curName(c){ return CUR[c] ? CUR[c].n : c; }
+  function curSym(c){ return CUR[c] ? CUR[c].s : c; }
+
+  /* ============ статус ============ */
+  function setStatus(kind, text, link){
+    var st = $("status");
+    st.textContent = "";
+    var dot = document.createElement("span");
+    dot.className = "dot" + (kind ? " " + kind : "");
+    var sp = document.createElement("span");
+    sp.textContent = text;
+    st.appendChild(dot); st.appendChild(sp);
+    if(link){
+      var a = document.createElement("a");
+      a.href = link.href; a.textContent = link.text; a.target = "_blank"; a.rel = "noopener";
+      st.appendChild(a);
+    }
+  }
+
+  function emptyState(hostId, title, msg, acts){
+    var el = $(hostId);
+    el.textContent = "";
+    el.classList.remove("hidden");
+    var b = document.createElement("b"); b.textContent = title;
+    var p = document.createElement("div"); p.style.marginTop = "6px"; p.textContent = msg;
+    el.appendChild(b); el.appendChild(p);
+    if(acts && acts.length){
+      var box = document.createElement("div"); box.className = "acts";
+      acts.forEach(function(a){
+        var btn = document.createElement("button");
+        btn.className = "ghost"; btn.type = "button"; btn.textContent = a.text;
+        btn.addEventListener("click", a.fn);
+        box.appendChild(btn);
+      });
+      el.appendChild(box);
+    }
+  }
+
+  /* ============ вкладка «Динамика курса» ============ */
+  function renderDyn(){
+    var rows = state.rows, pair = state.pair;
+    var sym = curSym(pair.q);
+    $("lineTitle").textContent = "Курс " + pair.title + ", " + sym + " за 1 " + pair.b;
+    $("thRate").textContent = "Курс, " + sym;
+    $("heroCur").textContent = " " + sym;
+
+    var few = rows.length < 2;
+    $("lineWrap").classList.toggle("hidden", few);
+    $("barCard").classList.toggle("hidden", few);
+    $("tblCard").classList.toggle("hidden", rows.length < 1);
+    if(few){
+      emptyState("dynEmpty", "Недостаточно данных за период",
+        "Источник вернул меньше двух значений. Выберите период длиннее или другой источник.", []);
+    } else {
+      $("dynEmpty").classList.add("hidden");
+    }
+    if(!rows.length){
+      $("heroVal").textContent = "—"; $("heroDelta").textContent = "—";
+      ["tMax","tMin","tAvg","tChg"].forEach(function(id){ $(id).textContent = "—"; });
+      return;
+    }
+
+    var vals = rows.map(function(r){ return r.v; });
+    var max = Math.max.apply(null, vals), min = Math.min.apply(null, vals);
+    var avg = vals.reduce(function(a,b){ return a+b; }, 0) / vals.length;
+    var first = rows[0], last = rows[rows.length-1];
+    var base = (rows.length > 1) ? first.v : (state.latest && state.latest.prev) || first.v;
+    var chgPct = base ? (last.v - base) / base * 100 : 0;
+    var dprev = last.chg !== null ? last.chg
+              : (state.latest && state.latest.prev ? last.v - state.latest.prev : null);
+    var dpct = (dprev !== null && (last.v - dprev)) ? dprev / (last.v - dprev) * 100 : null;
+
+    $("heroDate").textContent = shortDate(last.d, true);
+    $("heroVal").textContent = fmt(last.v);
+    var hd = $("heroDelta");
+    if(dprev === null){ hd.textContent = "—"; hd.className = "delta"; }
+    else {
+      hd.textContent = fmtSigned(dprev) + (dpct === null ? "" : "  (" + pct(dpct) + ")");
+      hd.className = "delta " + (dprev >= 0 ? "up" : "down");
+    }
+    $("tMax").textContent = fmt(max); $("tMaxD").textContent = shortDate(rows[vals.indexOf(max)].d, true);
+    $("tMin").textContent = fmt(min); $("tMinD").textContent = shortDate(rows[vals.indexOf(min)].d, true);
+    $("tAvg").textContent = fmt(avg);
+    var tc = $("tChg");
+    tc.textContent = pct(chgPct);
+    tc.className = "num " + (chgPct >= 0 ? "up" : "down");
+    $("tChgD").textContent = "с " + shortDate(first.d, true);
+
+    var note = shortDate(first.d, true) + " — " + shortDate(last.d, true) + " · " + rows.length + " набл.";
+    $("rangeNote").textContent = note;
+    $("tblNote").textContent = note;
+
+    if(!few){
+      drawLine({wrap:"lineWrap", svg:"lineSvg", tip:"lineTip", hist:rows, aria:"График курса " + pair.title});
+      drawBars(rows);
+    }
+
+    var tb = $("tbody");
+    tb.textContent = "";
+    for(var i = rows.length - 1; i >= 0; i--){
+      var r = rows[i], tr = document.createElement("tr");
+      function td(text, cls){ var c = document.createElement("td"); c.textContent = text; if(cls) c.className = cls; return c; }
+      tr.appendChild(td(shortDate(r.d, true)));
+      tr.appendChild(td(fmt(r.v), "strong"));
+      if(r.chg === null){ tr.appendChild(td("—")); tr.appendChild(td("—")); }
+      else {
+        tr.appendChild(td(fmtSigned(r.chg), r.chg >= 0 ? "up" : "down"));
+        tr.appendChild(td(r.pct === null ? "—" : pct(r.pct), r.chg >= 0 ? "up" : "down"));
+      }
+      tb.appendChild(tr);
+    }
+  }
+
+  /* ============ вкладка «Прогноз курса» ============ */
+  function computeForecast(rows, h){
+    if(rows.length < 4) return null;
+    var t0 = rows[0].d;
+    var xs = rows.map(function(r){ return daysBetween(t0, r.d); });
+    var ys = rows.map(function(r){ return Math.log(r.v); });
+    var n = rows.length;
+    var mx = xs.reduce(function(a,b){ return a+b; },0)/n, my = ys.reduce(function(a,b){ return a+b; },0)/n;
+    var num = 0, den = 0;
+    for(var i=0;i<n;i++){ num += (xs[i]-mx)*(ys[i]-my); den += (xs[i]-mx)*(xs[i]-mx); }
+    var slope = den ? num/den : 0;
+    var rets = [];
+    for(var j=1;j<n;j++){
+      var gap = Math.max(1, xs[j]-xs[j-1]);
+      rets.push((ys[j]-ys[j-1]) / Math.sqrt(gap));
+    }
+    var mr = rets.reduce(function(a,b){ return a+b; },0)/rets.length;
+    var vr = rets.reduce(function(a,b){ return a + (b-mr)*(b-mr); },0) / Math.max(1, rets.length-1);
+    var sigma = Math.sqrt(vr);
+    var last = rows[n-1], z = 1.2816;
+    var step = Math.max(1, Math.round(h/24)), pts = [];
+    for(var k = step; k <= h; k += step){
+      var v = last.v * Math.exp(slope * k), w = z * sigma * Math.sqrt(k);
+      pts.push({d: iso(dayShift(fromIso(last.d), k)), v: v, lo: v*Math.exp(-w), hi: v*Math.exp(w), fc: true});
+    }
+    var lastPt = pts[pts.length-1];
+    if(!lastPt || daysBetween(last.d, lastPt.d) < h){
+      var v2 = last.v * Math.exp(slope*h), w2 = z*sigma*Math.sqrt(h);
+      lastPt = {d: iso(dayShift(fromIso(last.d), h)), v: v2, lo: v2*Math.exp(-w2), hi: v2*Math.exp(w2), fc: true};
+      pts.push(lastPt);
+    }
+    return {pts: pts, slope: slope, sigma: sigma, target: lastPt, from: last, n: n};
+  }
+
+  function renderForecast(){
+    var rows = state.rows, pair = state.pair, sym = curSym(pair.q);
+    $("fcCur").textContent = " " + sym;
+    $("fcTitle").textContent = "История и расчётная траектория " + pair.title;
+    var f = computeForecast(rows, state.horizon);
+    if(!f){
+      $("fcWrap").classList.add("hidden");
+      emptyState("fcEmpty", "Мало истории для расчёта",
+        "Нужно минимум 4 значения. Выберите период подлиннее на вкладке «Динамика курса».",
+        [{text:"Взять месяц", fn:function(){ setPeriod("month"); }},
+         {text:"Взять год", fn:function(){ setPeriod("year"); }}]);
+      ["fcVal","fcDelta","fcBand","fcTrend","fcVol","fcN"].forEach(function(id){ $(id).textContent = "—"; });
+      return;
+    }
+    $("fcEmpty").classList.add("hidden");
+    $("fcWrap").classList.remove("hidden");
+
+    var d = f.target.v - f.from.v, dp = f.from.v ? d / f.from.v * 100 : 0;
+    $("fcDate").textContent = shortDate(f.target.d, true);
+    $("fcVal").textContent = fmt(f.target.v);
+    var fd = $("fcDelta");
+    fd.textContent = fmtSigned(d) + "  (" + pct(dp) + ")";
+    fd.className = "delta " + (d >= 0 ? "up" : "down");
+    $("fcBand").textContent = fmt(f.target.lo) + " — " + fmt(f.target.hi);
+    var permonth = (Math.exp(f.slope*30) - 1) * 100;
+    var tr = $("fcTrend");
+    tr.textContent = pct(permonth);
+    tr.className = "num " + (permonth >= 0 ? "up" : "down");
+    $("fcVol").textContent = (f.sigma*100).toFixed(2) + "%";
+    $("fcN").textContent = f.n;
+    $("fcBase").textContent = "период: " + state.period.name.toLowerCase();
+
+    drawLine({wrap:"fcWrap", svg:"fcSvg", tip:"fcTip", hist:rows, proj:f.pts,
+              aria:"История и расчётная траектория " + pair.title});
+  }
+
+  /* ============ вкладка «Кросс-курс» ============ */
+  function crossRate(a, b){
+    var t = state.table;
+    if(!t || !t[a] || !t[b]) return null;
+    return t[a] / t[b];
+  }
+  function renderCross(){
+    var t = state.table;
+    var src = SOURCES.filter(function(s){ return s.id === state.source; })[0];
+    $("crossNote").textContent = t ? ("по данным: " + src.full) : "";
+    var avail = !!t;
+    ["cAmt","cFrom","cTo","cSwap","cRes"].forEach(function(id){ $(id).disabled = !avail; });
+    if(!avail){
+      $("crossEmpty").classList.remove("hidden");
+      emptyState("crossEmpty", "Источник не отдаёт таблицу всех валют",
+        "Кросс-курсы считаются по полной таблице курсов — её публикуют ЦБ и Форекс. " +
+        "Биржевой источник даёт только торгуемые инструменты.",
+        [{text:"Считать по ЦБ", fn:function(){ setSource("cbr"); }},
+         {text:"Считать по Форексу", fn:function(){ setSource("fx"); }}]);
+      $("mHead").textContent = ""; $("mBody").textContent = "";
+      $("cBig").textContent = "—"; $("cRate").textContent = "—";
+      return;
+    }
+    $("crossEmpty").classList.add("hidden");
+
+    // конвертер
+    var a = $("cFrom").value, b = $("cTo").value;
+    var amt = parseFloat(($("cAmt").value || "0").replace(/\s/g,"").replace(",","."));
+    var r = crossRate(a, b);
+    if(!isFinite(amt) || r === null){
+      $("cRes").value = ""; $("cBig").textContent = "—"; $("cRate").textContent = "нет курса для этой пары";
+    } else {
+      var res = amt * r;
+      $("cRes").value = money(res);
+      $("cBig").textContent = money(res) + " " + curSym(b);
+      $("cRate").textContent = "1 " + a + " = " + fmt(r) + " " + b + "   ·   1 " + b + " = " + fmt(1/r) + " " + a;
+    }
+
+    // матрица
+    var list = MATRIX.filter(function(c){ return t[c]; });
+    var th = $("mHead"); th.textContent = "";
+    var hr = document.createElement("tr");
+    var corner = document.createElement("th"); corner.textContent = "за 1";
+    hr.appendChild(corner);
+    list.forEach(function(c){ var h = document.createElement("th"); h.textContent = c; hr.appendChild(h); });
+    th.appendChild(hr);
+    var tb = $("mBody"); tb.textContent = "";
+    list.forEach(function(rc){
+      var tr = document.createElement("tr");
+      var head = document.createElement("td"); head.className = "strong"; head.textContent = rc;
+      tr.appendChild(head);
+      list.forEach(function(cc){
+        var td = document.createElement("td");
+        if(rc === cc) td.textContent = "—";
+        else { var v = crossRate(rc, cc); td.textContent = v === null ? "—" : fmt(v); }
+        tr.appendChild(td);
+      });
+      tb.appendChild(tr);
+    });
+  }
+
+  /* ============ загрузка ============ */
+  function render(){
+    var lastRow = state.rows.length ? state.rows[state.rows.length-1] : null;
+    DEC = (state.view === "cross" || !lastRow) ? null : decimals(lastRow.v);
+    if(state.view === "dyn") renderDyn();
+    else if(state.view === "fc") renderForecast();
+    else renderCross();
+  }
+
+  function load(){
+    if(state.manual){
+      state.rows = state.manual;
+      state.table = null;
+      setStatus("demo", state.demoNote ||
+        ("Свои данные · " + state.manual.length + " набл. · источник отключён"));
+      render();
+      return Promise.resolve();
+    }
+    var pair = state.pair, period = state.period, src = state.source;
+    var prov = PROVIDERS[src];
+    var srcMeta = SOURCES.filter(function(s){ return s.id === src; })[0];
+    var id = ++state.reqId;
+    state.loading = true;
+    $("refreshBtn").classList.add("spin");
+    document.querySelectorAll(".chart").forEach(function(c){ c.classList.add("stale"); });
+    setStatus("", "Загружаю " + pair.title + " — " + srcMeta.full + "…");
+
+    return Promise.resolve().then(function(){ return prov.load(pair, period); })
+      .then(function(res){
+        if(id !== state.reqId) return;
+        state.rows = decorate(res.points);
+        state.table = res.table || null;
+        state.latest = {date: res.date, prev: res.prev};
+        var extra = res.note ? " · " + res.note : "";
+        setStatus("live", srcMeta.full + " · данные на " + shortDate(res.date, true) + extra);
+        render();
+      })
+      .catch(function(e){
+        if(id !== state.reqId) return;
+        var msg = (e && e.message) ? e.message : "не удалось получить данные";
+        state.rows = []; state.table = null;
+        if(e && e.rbc){
+          setStatus("err", msg, {href:"https://quote.rbc.ru/", text:"Открыть quote.rbc.ru"});
+        } else if(e && e.soft){
+          setStatus("err", msg);
+        } else {
+          setStatus("err", srcMeta.full + ": " + msg +
+            ". Запрос мог заблокировать браузер: страницу надо открывать по http(s), а не файлом, " +
+            "и не в песочнице, которая запрещает внешние запросы.");
+        }
+        // страница не остаётся пустой: показываем демо-ряд и пишем, почему
+        useDemo(srcMeta.full + ": " + msg + " · показан демо-ряд USD/RUB из бумажной таблицы");
+      })
+      .then(function(){
+        if(id !== state.reqId) return;
+        state.loading = false;
+        $("refreshBtn").classList.remove("spin");
+        document.querySelectorAll(".chart").forEach(function(c){ c.classList.remove("stale"); });
+      });
+  }
+
+  function useDemo(note){
+    state.manual = decorate(DEMO.map(function(r){ return {d:r[0], v:r[1]}; }));
+    state.demoNote = note || null;
+    $("dataIn").value = DEMO.map(function(r){ return r[0] + " " + r[1].toFixed(4); }).join("\n");
+    $("dynEmpty").classList.add("hidden");
+    $("lineWrap").classList.remove("hidden");
+    $("barCard").classList.remove("hidden");
+    $("tblCard").classList.remove("hidden");
+    load();
+  }
+
+  /* ============ парсер «своих данных» ============ */
+  var MD = [0,31,59,90,120,151,181,212,243,273,304,334];
+  function parseManual(text){
+    var out = [], lines = text.split("\n"), year = new Date().getUTCFullYear(), prevDoy = null, y = year;
+    for(var i=0;i<lines.length;i++){
+      var line = lines[i].trim();
+      if(!line) continue;
+      var p = line.split(/[\s\t;]+/);
+      if(p.length < 2) throw new Error("Строка " + (i+1) + ": нужны дата и курс.");
+      var d = p[0], isoD;
+      if(/^\d{4}-\d{2}-\d{2}$/.test(d)) isoD = d;
+      else if(/^\d{1,2}\.\d{1,2}$/.test(d)){
+        var dd = parseInt(d.split(".")[0],10), mm = parseInt(d.split(".")[1],10);
+        var doy = MD[mm-1] + dd;
+        if(prevDoy !== null && doy < prevDoy) y++;
+        prevDoy = doy;
+        isoD = y + "-" + pad(mm) + "-" + pad(dd);
+      }
+      else if(/^\d{1,2}\.\d{1,2}\.\d{4}$/.test(d)){
+        var q = d.split("."); isoD = q[2] + "-" + pad(+q[1]) + "-" + pad(+q[0]);
+      }
+      else throw new Error("Строка " + (i+1) + ": дата в виде ДД.ММ, ДД.ММ.ГГГГ или ГГГГ-ММ-ДД.");
+      var v = parseFloat(p[1].replace(",","."));
+      if(!isFinite(v)) throw new Error("Строка " + (i+1) + ": курс не число.");
+      out.push({d: isoD, v: v});
+    }
+    if(out.length < 2) throw new Error("Нужно минимум два наблюдения.");
+    return decorate(out);
+  }
+
+  /* ============ элементы управления ============ */
+  function buildPairSelect(){
+    var sel = $("pairSel");
+    sel.textContent = "";
+    var groups = [{t:"К рублю", f:function(p){ return p.q === "RUB"; }},
+                  {t:"Кросс-курсы", f:function(p){ return p.q !== "RUB"; }}];
+    groups.forEach(function(g){
+      var og = document.createElement("optgroup"); og.label = g.t;
+      PAIRS.filter(g.f).forEach(function(p){
+        var o = document.createElement("option");
+        o.value = p.id;
+        o.textContent = p.title + " — " + curName(p.b);
+        og.appendChild(o);
+      });
+      sel.appendChild(og);
+    });
+    sel.value = state.pair.id;
+  }
+  function buildSeg(hostId, items, activeId, onPick, attr){
+    var host = $(hostId);
+    host.textContent = "";
+    items.forEach(function(it){
+      var b = document.createElement("button");
+      b.type = "button";
+      b.textContent = it.name;
+      b.setAttribute(attr || "data-id", it.id);
+      b.setAttribute("aria-pressed", it.id === activeId ? "true" : "false");
+      b.addEventListener("click", function(){ onPick(it.id); });
+      host.appendChild(b);
+    });
+  }
+  function markSeg(hostId, id){
+    Array.prototype.forEach.call($(hostId).querySelectorAll("button"), function(b){
+      b.setAttribute("aria-pressed", b.getAttribute("data-id") === id ? "true" : "false");
+    });
+  }
+  function buildCurSelects(){
+    ["cFrom","cTo"].forEach(function(id){
+      var sel = $(id); sel.textContent = "";
+      Object.keys(CUR).forEach(function(c){
+        var o = document.createElement("option");
+        o.value = c; o.textContent = c + " — " + CUR[c].n;
+        sel.appendChild(o);
+      });
+    });
+    $("cFrom").value = "USD"; $("cTo").value = "RUB";
+  }
+
+  function setPair(id){
+    var p = PAIRS.filter(function(x){ return x.id === id; })[0];
+    if(!p) return;
+    state.pair = p;
+    $("pairSel").value = id;
+    $("title").textContent = p.title;
+    $("pairName").textContent = curName(p.b) + " → " + curName(p.q);
+    document.title = p.title + " · Курсы валют";
+    remember();
+    load();
+  }
+  function setSource(id){
+    state.source = id;
+    markSeg("srcSeg", id);
+    remember();
+    load();
+  }
+  function setPeriod(id){
+    var p = PERIODS.filter(function(x){ return x.id === id; })[0];
+    if(!p) return;
+    state.period = p;
+    markSeg("perSeg", id);
+    remember();
+    load();
+  }
+  function setView(v){
+    state.view = v;
+    Array.prototype.forEach.call($("viewTabs").querySelectorAll("button"), function(b){
+      b.setAttribute("aria-selected", b.getAttribute("data-view") === v ? "true" : "false");
+    });
+    $("view-dyn").classList.toggle("hidden", v !== "dyn");
+    $("view-fc").classList.toggle("hidden", v !== "fc");
+    $("view-cross").classList.toggle("hidden", v !== "cross");
+    remember();
+    render();
+  }
+  function remember(){
+    try {
+      localStorage.setItem("rates-state", JSON.stringify({
+        pair: state.pair.id, source: state.source, period: state.period.id, view: state.view
+      }));
+    } catch(e){}
+  }
+
+  /* ============ подвал и настройки ============ */
+  function buildFooter(){
+    var f = $("foot");
+    f.textContent = "";
+    var p1 = document.createElement("p");
+    p1.style.margin = "0 0 8px";
+    p1.textContent = "Источники: ЦБ РФ (cbr-xml-daily.ru — зеркало официальных курсов ЦБ), " +
+      "Мосбиржа (iss.moex.com, режим CETS), Форекс (open.er-api.com — текущие котировки, " +
+      "api.frankfurter.app — история по данным ЕЦБ). У РБК открытого API курсов нет.";
+    var p2 = document.createElement("p");
+    p2.style.margin = "0";
+    p2.textContent = "Страница ходит за данными прямо из браузера. Открытая как локальный файл " +
+      "(file://) она получит отказ по CORS — выложите её на любой https-адрес, например GitHub Pages, " +
+      "или укажите адрес прокси ниже.";
+    f.appendChild(p1); f.appendChild(p2);
+
+    var d = document.createElement("details");
+    var s = document.createElement("summary"); s.textContent = "Настройки сети";
+    var inp = document.createElement("input");
+    inp.type = "text"; inp.className = "wide"; inp.id = "proxyIn";
+    inp.placeholder = "префикс прокси, например https://my-proxy.example/?url={url}";
+    inp.value = settings.proxy;
+    var hint = document.createElement("div");
+    hint.className = "hint";
+    hint.textContent = "Если задан {url}, адрес источника подставляется туда в закодированном виде; " +
+      "иначе строка просто приписывается слева. Значение хранится только в этом браузере.";
+    var acts = document.createElement("div");
+    acts.className = "actions";
+    var save = document.createElement("button");
+    save.className = "ghost"; save.type = "button"; save.textContent = "Сохранить и обновить";
+    save.addEventListener("click", function(){
+      settings.proxy = inp.value.trim();
+      try { localStorage.setItem("rates-proxy", settings.proxy); } catch(e){}
+      memCache = {};
+      load();
+    });
+    acts.appendChild(save);
+    d.appendChild(s); d.appendChild(inp); d.appendChild(hint); d.appendChild(acts);
+    f.appendChild(d);
+  }
+
+  /* ============ события ============ */
+  function wire(){
+    $("pairSel").addEventListener("change", function(){ setPair(this.value); });
+    $("viewTabs").addEventListener("click", function(e){
+      var b = e.target.closest("button[data-view]");
+      if(b) setView(b.getAttribute("data-view"));
+    });
+    Array.prototype.forEach.call($("hzSeg").querySelectorAll("button"), function(b){
+      b.addEventListener("click", function(){
+        state.horizon = parseInt(b.getAttribute("data-h"), 10);
+        Array.prototype.forEach.call($("hzSeg").querySelectorAll("button"), function(x){
+          x.setAttribute("aria-pressed", x === b ? "true" : "false");
+        });
+        renderForecast();
+      });
+    });
+    $("refreshBtn").addEventListener("click", function(){ memCache = {}; load(); });
+
+    $("csvBtn").addEventListener("click", function(){
+      var rows = state.rows;
+      if(!rows.length) return;
+      var lines = ["Дата;Курс;Изменение;Изменение %"];
+      rows.forEach(function(r){
+        lines.push([r.d, r.v.toFixed(6), r.chg === null ? "" : r.chg.toFixed(6),
+                    r.pct === null ? "" : r.pct.toFixed(3)].join(";"));
+      });
+      var blob = new Blob(["﻿" + lines.join("\n")], {type:"text/csv;charset=utf-8"});
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = state.pair.id + "-" + state.source + ".csv";
+      document.body.appendChild(a); a.click();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 0);
+    });
+
+    $("applyBtn").addEventListener("click", function(){
+      try {
+        state.manual = parseManual($("dataIn").value);
+        state.demoNote = null;
+        $("err").textContent = "";
+        $("dynEmpty").classList.add("hidden");
+        $("lineWrap").classList.remove("hidden");
+        $("barCard").classList.remove("hidden");
+        $("tblCard").classList.remove("hidden");
+        load();
+      } catch(e){ $("err").textContent = e.message; }
+    });
+    $("resetBtn").addEventListener("click", function(){
+      state.manual = null; state.demoNote = null; $("err").textContent = "";
+      $("lineWrap").classList.remove("hidden");
+      $("barCard").classList.remove("hidden");
+      $("tblCard").classList.remove("hidden");
+      load();
+    });
+
+    ["cAmt","cFrom","cTo"].forEach(function(id){
+      $(id).addEventListener("input", renderCross);
+      $(id).addEventListener("change", renderCross);
+    });
+    $("cSwap").addEventListener("click", function(){
+      var a = $("cFrom").value; $("cFrom").value = $("cTo").value; $("cTo").value = a;
+      renderCross();
+    });
+
+    var themeBtn = $("themeBtn");
+    function isDark(){
+      var t = document.documentElement.getAttribute("data-theme");
+      if(t) return t === "dark";
+      return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    }
+    function syncTheme(){ themeBtn.textContent = isDark() ? "☀" : "☾"; }
+    try { var sv = localStorage.getItem("rates-theme"); if(sv) document.documentElement.setAttribute("data-theme", sv); } catch(e){}
+    syncTheme();
+    themeBtn.addEventListener("click", function(){
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("rates-theme", next); } catch(e){}
+      syncTheme();
+      render();
+    });
+
+    var rt;
+    window.addEventListener("resize", function(){
+      clearTimeout(rt);
+      rt = setTimeout(function(){ if(!state.loading) render(); }, 140);
+    });
+  }
+
+  /* ============ старт ============ */
+  function init(){
+    try {
+      var saved = JSON.parse(localStorage.getItem("rates-state") || "null");
+      if(saved){
+        var p = PAIRS.filter(function(x){ return x.id === saved.pair; })[0];
+        if(p) state.pair = p;
+        if(PROVIDERS[saved.source]) state.source = saved.source;
+        var pr = PERIODS.filter(function(x){ return x.id === saved.period; })[0];
+        if(pr) state.period = pr;
+        if(["dyn","fc","cross"].indexOf(saved.view) >= 0) state.view = saved.view;
+      }
+    } catch(e){}
+
+    buildPairSelect();
+    buildSeg("srcSeg", SOURCES, state.source, setSource);
+    buildSeg("perSeg", PERIODS, state.period.id, setPeriod);
+    buildCurSelects();
+    buildFooter();
+    wire();
+
+    $("title").textContent = state.pair.title;
+    $("pairName").textContent = curName(state.pair.b) + " → " + curName(state.pair.q);
+    document.title = state.pair.title + " · Курсы валют";
+    $("dataIn").value = DEMO.map(function(r){ return r[0] + " " + r[1].toFixed(4); }).join("\n");
+    setView(state.view);
+    load();
+  }
+
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+  else init();
+})();
+</script>
+</body>
+</html>
