@@ -203,8 +203,11 @@
 
   <div class="ctl">
     <select id="pairSel" aria-label="Валютная пара"></select>
-    <select id="cmp1" aria-label="Вторая пара для сравнения"></select>
-    <select id="cmp2" aria-label="Третья пара для сравнения"></select>
+    <button class="ghost" id="cmpToggle" type="button">+ сравнить</button>
+    <span id="cmpBox" class="hidden" style="display:contents">
+      <select id="cmp1" aria-label="Вторая пара для сравнения"></select>
+      <select id="cmp2" aria-label="Третья пара для сравнения"></select>
+    </span>
     <div class="seg" id="srcSeg" role="group" aria-label="Источник"></div>
   </div>
 
@@ -424,8 +427,7 @@
   var SOURCES = [
     {id:"cbr",  name:"ЦБ",     full:"ЦБ РФ (официальные курсы)"},
     {id:"moex", name:"ММВБ",   full:"Мосбиржа, валютный рынок CETS"},
-    {id:"fx",   name:"Форекс", full:"Форекс (ECB / exchangerate-api)"},
-    {id:"rbc",  name:"РБК",    full:"РБК"}
+    {id:"fx",   name:"Форекс", full:"Форекс (ECB / exchangerate-api)"}
   ];
 
   var PERIODS = [
@@ -767,18 +769,7 @@
     }
   };
 
-  /* ============ источник: РБК ============ */
-  var providerRBC = {
-    label: "РБК",
-    load: function(){
-      var e = new Error("У РБК нет публичного API курсов: сайт показывает котировки ЦБ, Мосбиржи и Форекса, " +
-                        "а они уже доступны на соседних кнопках источника.");
-      e.soft = true; e.rbc = true;
-      throw e;
-    }
-  };
-
-  var PROVIDERS = {cbr: providerCBR, moex: providerMOEX, fx: providerFX, rbc: providerRBC};
+  var PROVIDERS = {cbr: providerCBR, moex: providerMOEX, fx: providerFX};
 
   /* ============ шкалы ============ */
   function niceScale(lo, hi, want, padFrac){
@@ -1523,11 +1514,6 @@
         if(id !== state.reqId) return;
         var msg = (e && e.message) ? e.message : "не удалось получить данные";
         state.series = []; state.rows = []; state.table = null;
-        if(e && e.rbc){
-          setStatus("err", msg, {href:"https://quote.rbc.ru/", text:"Открыть quote.rbc.ru"});
-          render();
-          return;
-        }
         if(e && e.soft){ setStatus("err", msg); render(); return; }
         useDemo(srcMeta.full + ": " + msg + " · показан демо-ряд USD/RUB из бумажной таблицы");
       })
@@ -1642,8 +1628,16 @@
   function setCmp(slot, id){
     state.cmp[slot] = id || null;
     state.scaleMode = "auto";
+    if(!state.cmp[0] && !state.cmp[1]) showCmp(false);   // нечего сравнивать — убираем лишние списки
     remember();
     load();
+  }
+  function showCmp(on){
+    var box = $("cmpBox");
+    box.style.display = on ? "contents" : "none";
+    box.classList.toggle("hidden", !on);
+    $("cmpToggle").classList.toggle("hidden", on);
+    if(!on){ $("cmp1").value = ""; $("cmp2").value = ""; }
   }
   function setSource(id){
     state.source = id;
@@ -1718,7 +1712,7 @@
     p1.style.margin = "0 0 8px";
     p1.textContent = "Источники: ЦБ РФ (cbr-xml-daily.ru — зеркало официальных курсов ЦБ), " +
       "Мосбиржа (iss.moex.com, режим CETS), Форекс (open.er-api.com — текущие котировки, " +
-      "api.frankfurter.app — история по данным ЕЦБ). У РБК открытого API курсов нет.";
+      "api.frankfurter.app — история по данным ЕЦБ).";
     var p2 = document.createElement("p");
     p2.style.margin = "0";
     p2.textContent = "Страница ходит за данными прямо из браузера. Открытая как локальный файл " +
@@ -1754,6 +1748,7 @@
   /* ============ события ============ */
   function wire(){
     $("pairSel").addEventListener("change", function(){ setPair(this.value); });
+    $("cmpToggle").addEventListener("click", function(){ showCmp(true); $("cmp1").focus(); });
     $("cmp1").addEventListener("change", function(){ setCmp(0, this.value); syncHead(); });
     $("cmp2").addEventListener("change", function(){ setCmp(1, this.value); syncHead(); });
 
@@ -1895,6 +1890,7 @@
     $("pairSel").value = state.pair.id;
     $("cmp1").value = state.cmp[0] || "";
     $("cmp2").value = state.cmp[1] || "";
+    showCmp(!!(state.cmp[0] || state.cmp[1]));
 
     buildSeg("srcSeg", SOURCES, state.source, setSource);
     buildSeg("perSeg", PERIODS, state.period.id, setPeriod);
